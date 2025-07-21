@@ -4,6 +4,7 @@
 % Data set covers a project of Tasting 4 different materials
 % Subjects : 5 participants with Closed nose and 5 participant with opened nose
 % Materials used are discibed in the file "Label" as 1,2,3,4
+
 % The data from each subjects consists : 160x1280x17 meaning: trails x time x channels
 
 % What we want to achieve?
@@ -49,13 +50,46 @@ SKT_opened    = load_single_var(fullfile(opened_path, "SK_T.mat"));
 SM_opened     = load_single_var(fullfile(opened_path, "SM.mat"));
 Labels_opened = load_single_var(fullfile(opened_path, "Label_opened.mat"));
 
-plot(AC_closed(1,:,1));
-title('AC Closed - Channel 1');
-xlabel('Time');
-ylabel('Amplitude');
+% plot(AC_closed(1,:,1));
+% title('AC Closed - CH1');
+% xlabel('Time');
+% ylabel('Amplitude');
 
-% Read about EEG signal processing and how to to do it 
+ 
+% AC eyes closed : 1 trail 
+AC_c_1 = squeeze(AC_closed(1,:,:)); %first trail
+frequency = 250; %sampling frequency
+time = (0:size(AC_c_1,1)-1) / frequency;
+offset = 200;
+
+figure(1)
+hold on;
+for channels = 1:size(AC_c_1, 2)
+    plot(time, AC_c_1(:,channels) + (channels-1)*offset, 'DisplayName', ['Ch ' num2str(channels)]);
+end
+
+title("AC - eyes closed I trail")
+ylabel("channels")
+xlabel("time (s)");
+xlim([0 5.12])
+ylim([-100 3370])
+yticks((0:size(AC_c_1,2)-1)*offset);
+yticklabels({"CH1","CH2","CH3","CH4","CH5","CH6","CH7","CH8","CH9","CH10","CH11","CH12","CH13","CH14","CH15","CH16","CH17"});
+grid on;
+hold off;
+
+
+
+
 
 
 %% Denosing
+
+
+
+
+
+
+
+
 
