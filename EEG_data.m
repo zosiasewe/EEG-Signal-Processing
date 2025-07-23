@@ -50,22 +50,18 @@ SKT_opened    = load_single_var(fullfile(opened_path, "SK_T.mat"));
 SM_opened     = load_single_var(fullfile(opened_path, "SM.mat"));
 Labels_opened = load_single_var(fullfile(opened_path, "Label_opened.mat"));
 
-% plot(AC_closed(1,:,1));
-% title('AC Closed - CH1');
-% xlabel('Time');
-% ylabel('Amplitude');
 
  
 % AC eyes closed : 1 trail 
-AC_c_1 = squeeze(AC_closed(1,:,:)); %first trail
+AC_C_1 = squeeze(AC_closed(1,:,:)); % first trail
 frequency = 250; %sampling frequency
-time = (0:size(AC_c_1,1)-1) / frequency;
+time = (0:size(AC_C_1,1)-1) / frequency;
 offset = 200;
 
 figure(1)
 hold on;
-for channels = 1:size(AC_c_1, 2)
-    plot(time, AC_c_1(:,channels) + (channels-1)*offset, 'DisplayName', ['Ch ' num2str(channels)]);
+for channels = 1:size(AC_C_1, 2)
+    plot(time, AC_C_1(:,channels) + (channels-1)*offset);
 end
 
 title("AC - eyes closed I trail")
@@ -73,14 +69,14 @@ ylabel("channels")
 xlabel("time (s)");
 xlim([0 5.12])
 ylim([-100 3370])
-yticks((0:size(AC_c_1,2)-1)*offset);
+yticks((0:size(AC_C_1,2)-1) * offset);
 yticklabels({"CH1","CH2","CH3","CH4","CH5","CH6","CH7","CH8","CH9","CH10","CH11","CH12","CH13","CH14","CH15","CH16","CH17"});
 grid on;
 hold off;
 
 
 
-
+% all trails one channel
 
 
 %% Denosing
