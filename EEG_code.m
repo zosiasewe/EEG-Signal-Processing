@@ -31,7 +31,7 @@ EEG_epoched.trials = 160;% 160  trials
 EEG_epoched.srate = 256;
 EEG_epoched.xmin = 0;
 EEG_epoched.xmax = (1280-1)/256;
-EEG_epoched.times = (0:1279) * 1000/256; % time vector in ms [0, 3.906, 7.812, ...]
+EEG_epoched.times = (0:1279) * 1000/256; % time vector in ms
 EEG_epoched = eeg_checkset(EEG_epoched);
 
 [ALLEEG, EEG_epoched, CURRENTSET] = eeg_store(ALLEEG, EEG_epoched, 2);
