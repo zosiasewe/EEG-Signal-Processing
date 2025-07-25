@@ -106,12 +106,15 @@ tmp = load(closed_path);
 data = struct2array(tmp);                                           % Size: [160 × 1280 × 17] = [trials × time × channels]
 
 sampling_rate = 256;
-n_samples = 1280
+n_samples = 1280;
 n_trials = size(data, 1);                                           % 160 trials
 n_time = size(data, 2);                                             % 1280 time points per trial
 n_channels = size(data, 3);                                         % 17 channels
 trial_duration_sec = n_time / sampling_rate;                        % 1280 / sampling rate
 total_duration_sec = n_trials * trial_duration_sec;
+
+Channel_names = ["F4" "F3" "F8" "F7" "FZ" "C4" "C3" "T4" "T3" "T6" "T5" "P4" "P3" "PZ" "O2" "O1" "OZ"];
+
 
 data_perm = permute(data, [3, 2, 1]);                               % [channels × time × trials]
 EEG_data_shaped = reshape(data_perm, n_channels, []);               % [17 × (1280*160)]
@@ -159,6 +162,8 @@ ylim([-offset, offset * n_channels]);
 % xlim([0, total_duration_sec/sampling_rate]);
 grid on;
 hold off;
+
+
 
 
 
