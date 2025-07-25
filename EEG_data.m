@@ -7,6 +7,9 @@
 
 % The data from each subjects consists : 160x1280x17 meaning: trails x time x channels
 
+% The data was recorded using 512 Hz sampling frequency
+% Each epoch consists the recorded event of "tasting"
+
 % What we want to achieve?
 % We want to perform a binary classification o both opened and closed eyes
 % We want to use ML algorithms for a robust classification of this
@@ -22,9 +25,7 @@
 % After this We want to do a research on BCI P300 and if the size of the
 % screen matters 
 
-
-%%Trail 2 
-
+%% ---------------------------------------------------------------------------------------------------------------------------
 clc
 clear
 close all
@@ -44,7 +45,6 @@ n_channels = size(data, 3);                                         % 17 channel
 trial_duration_sec = n_time / sampling_rate;                        % 1280 / sampling rate
 total_duration_sec = n_trials * trial_duration_sec;
 
-
 data_perm = permute(data, [3, 2, 1]);                               % [channels × time × trials]
 EEG_data_shaped = reshape(data_perm, n_channels, []);               % [17 × (1280*160)]
 
@@ -52,6 +52,7 @@ time = linspace(0, total_duration_sec, size(EEG_data_shaped, 2));   % time for e
 offset = 300;                                                       % separation between channels
 
 %% Plot for the whole time range
+
 figure(1);
 hold on;
 
@@ -71,105 +72,94 @@ hold off;
 
 
 %% Plot for defined Epochs 
-epoch_num = 1;
-EEG_epoched = squeeze(data(epoch_num,:,:)); % 1280 x 17
-
+epoch_num = [20, 21, 22, 23];
 time_2 = (0:n_samples-1) / sampling_rate;
 
 figure(2);
-hold on;
 
-for ch = 1:n_channels
-    plot(time_2, (EEG_epoched(:, ch) + (ch - 1) * offset));
+for num_epochs = 1:length(epoch_num)
+    subplot(2, 2, num_epochs);
+    hold on;
+
+    for ch = 1:n_channels
+        plot(time_2, data(epoch_num(num_epochs), :, ch) + (ch - 1) * offset);
+    end
+
+    title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
+    xlabel('Time (s)');
+    ylabel('Channels');
+    yticks((0:n_channels - 1) * offset);
+    yticklabels(channels(1:n_channels));
+    ylim([-offset, offset * n_channels]);
+    xlim([0, 2.5]);
+    grid on;
+    hold off;
 end
 
-title('Partly EEG plot — Per epochs plot (AC, closed nose)');
-xlabel('Time (s)');
-ylabel('Channels');
-yticks((0:n_channels-1) * offset);
-yticklabels(channels(1:n_channels));
-ylim([-offset, offset * n_channels]);
-% xlim([0, total_duration_sec/sampling_rate]);
-grid on;
-hold off;
 
 
 %% Filtering the data
 
-% Low pass filter 
+% Testing the data for different Filter Values
+low_numbers = [0.5, 0.4, 0.3];
+high_numbers = [30, 35, 40];
 
-% Use Butterworth Filters butter
-% Use filtfilt() for zero-phase filtering (no time delay)
-% Filter each channel separately to avoid cross-channel artifacts
-% Apply high-pass first, then low-pass
-% High-pass: 0.5 Hz instead of 0.1 Hz (removes DC drift without instability)
-% Low-pass: 30 Hz (same as yours, good for EEG)
+for z=1:length(low_numbers)
+    for y=1:length(high_numbers)
+        
+        nyquist = sampling_rate / 2;
+        low_cutoff = low_numbers(1,z);
+        high_cutoff = high_numbers(1,y);
+        filter_order = 2;
+        
+        [b_hp, a_hp] = butter(filter_order, low_cutoff / nyquist, 'high');
+        [b_lp, a_lp] = butter(filter_order, high_cutoff / nyquist, 'low');
+        
+        EEG_filtered = zeros(size(EEG_data_shaped));
+        
+        for ch = 1:n_channels
+            hp_output = filtfilt(b_hp, a_hp, EEG_data_shaped(ch, :));
+            EEG_filtered(ch, :) = filtfilt(b_lp, a_lp, hp_output);
+        end
+        
+        filt_perm = permute(EEG_filtered, [2, 1]);
+        
+        
+        EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);  % [17 × 1280 × 160]
+        
+        trial_nums = [20, 21, 22, 23];
+        
+        figure_num = 100 + (z - 1) * length(high_numbers) + y;
+        figure(figure_num);        
 
-nyquist = sampling_rate / 2;
-low_cutoff = 0.5;
-high_cutoff = 30;
-filter_order = 2;
+        for num = 1:length(trial_nums)
+            subplot(2, 2, num);
+            
+            EEG_filtered_epoched = squeeze(EEG_filtered_reshaped(:, :, trial_nums(num)));
+            
+            time_2 = (0:n_samples - 1) / sampling_rate;
+            hold on;
+        
+            for ch = 1:n_channels
+                plot(time_2, EEG_filtered_epoched(ch, :) + (ch - 1) * offset);
+            end
+        
+            title(['Filtered EEG — Trial ', num2str(trial_nums(num))]);
+            subtitle(['Filter: HP = ', num2str(low_cutoff), ' Hz, LP = ', num2str(high_cutoff), ' Hz']);
+            xlabel('Time (s)');
+            ylabel('Channels');
+            yticks((0:n_channels - 1) * offset);
+            yticklabels(channels(1:n_channels));
+            ylim([-offset, offset * n_channels]);
+            xlim([0, 2.5]);
+            grid on;
+            hold off;
+        end
 
-[b_hp, a_hp] = butter(filter_order, low_cutoff / nyquist, 'high');
-[b_lp, a_lp] = butter(filter_order, high_cutoff / nyquist, 'low');
-
-EEG_filtered = zeros(size(EEG_data_shaped));
-
-for ch = 1:n_channels
-    hp_output = filtfilt(b_hp, a_hp, EEG_data_shaped(ch, :));
-    EEG_filtered(ch, :) = filtfilt(b_lp, a_lp, hp_output);
+    end
 end
 
-filt_perm = permute(EEG_filtered, [2, 1]);
 
 
-EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);  % [17 × 1280 × 160]
-
-trial_num = 1;
-EEG_filtered_epoched = squeeze(EEG_filtered_reshaped(:, :, trial_num));
-
-time_2 = (0:n_samples-1) / sampling_rate;
-
-figure(3);
-hold on;
-
-for ch = 1:n_channels
-    plot(time_2, (EEG_filtered_epoched(ch, :) + (ch - 1) * offset));
-end
-
-title('Partly EEG plot — Per epochs plot (AC, closed nose)');
-xlabel('Time (s)');
-ylabel('Channels');
-yticks((0:n_channels-1) * offset);
-yticklabels(channels(1:n_channels));
-ylim([-offset, offset * n_channels]);
-% xlim([0, total_duration_sec/sampling_rate]);
-grid on;
-hold off;
-
-
-% figure(3);
-% hold on;
-% 
-% for ch = 1:n_channels
-%     plot(time, hpf(ch, :) + (ch - 1) * offset);
-% end
-% 
-% title('Continuous EEG plot — all 160 trials concatenated (AC, closed nose)');
-% xlabel('Time (s)');
-% ylabel('Channels');
-% yticks((0:n_channels-1) * offset);
-% yticklabels(channels(1:n_channels));
-% ylim([-offset, offset * n_channels]);
-% xlim([0, total_duration_sec]);
-% grid on;
-% hold off;
-
-
-% High pass filter 
-
-
-
-
-
+% Testing the data with PSD
 
