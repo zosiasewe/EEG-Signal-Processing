@@ -135,6 +135,75 @@ for z=1:length(low_numbers)
         for num = 1:length(trial_nums)
             subplot(2, 2, num);
             
+            EEG_filtered_epoched_1 = squeeze(EEG_filtered_reshaped(:, :, trial_nums(1)));
+            EEG_filtered_epoched_2 = squeeze(EEG_filtered_reshaped(:, :, trial_nums(2)));
+            EEG_filtered_epoched_3 = squeeze(EEG_filtered_reshaped(:, :, trial_nums(3)));
+            EEG_filtered_epoched_4 = squeeze(EEG_filtered_reshaped(:, :, trial_nums(4)));           
+
+            time_2 = (0:n_samples - 1) / sampling_rate;
+            hold on;
+        
+            for ch = 1:n_channels
+                plot(time_2, (EEG_filtered_epoched_1(ch, :) + (ch - 1) * offset), time_2, (EEG_filtered_epoched_1(ch, :) + (ch - 1) * offset), '--', ...
+                    time_2, (EEG_filtered_epoched_1(ch, :) + (ch - 1) * offset), '--', time_2, (EEG_filtered_epoched_1(ch, :) + (ch - 1) * offset), '--');
+            end
+        
+            title(['Filtered EEG — Trial ', num2str(trial_nums(num))]);
+            subtitle(['Filter: HP = ', num2str(low_cutoff), ' Hz, LP = ', num2str(high_cutoff), ' Hz']);
+            xlabel('Time (s)');
+            ylabel('Channels');
+            yticks((0:n_channels - 1) * offset);
+            yticklabels(channels(1:n_channels));
+            ylim([-offset, offset * n_channels]);
+            xlim([0, 2.5]);
+            grid on;
+            hold off;
+        end
+    end
+end
+
+
+
+%% Filtering Data - different approach
+
+
+% we want to maybe ((((??????))))) plot it on a one figure (4 subplots but
+% different colors line etc to see the differences.
+
+% Testing the data for different Filter Values
+low_numbers = [0.5, 0.4, 0.3];
+high_numbers = [30, 35, 40];
+
+for z=1:length(low_numbers)
+    for y=1:length(high_numbers)
+        
+        nyquist = sampling_rate / 2;
+        low_cutoff = low_numbers(1,z);
+        high_cutoff = high_numbers(1,y);
+        filter_order = 2;
+        
+        [b_hp, a_hp] = butter(filter_order, low_cutoff / nyquist, 'high');
+        [b_lp, a_lp] = butter(filter_order, high_cutoff / nyquist, 'low');
+        
+        EEG_filtered = zeros(size(EEG_data_shaped));
+        
+        for ch = 1:n_channels
+            hp_output = filtfilt(b_hp, a_hp, EEG_data_shaped(ch, :));
+            EEG_filtered(ch, :) = filtfilt(b_lp, a_lp, hp_output);
+        end
+        
+        filt_perm = permute(EEG_filtered, [2, 1]);
+        
+        
+        EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);  % [17 × 1280 × 160]
+        
+        trial_nums = [20, 21, 22, 23];
+        
+        figure(100);        
+
+        for num = 1:length(trial_nums)
+            subplot(2, 2, num);
+            
             EEG_filtered_epoched = squeeze(EEG_filtered_reshaped(:, :, trial_nums(num)));
             
             time_2 = (0:n_samples - 1) / sampling_rate;
@@ -154,12 +223,12 @@ for z=1:length(low_numbers)
             xlim([0, 2.5]);
             grid on;
             hold off;
-        end
 
+            
+        end
     end
 end
 
 
 
-% Testing the data with PSD
 
