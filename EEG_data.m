@@ -23,78 +23,6 @@
 % screen matters 
 
 
-%% Data loading 
-% clc
-% clear all
-% close all
-% % 
-% 
-% closed_path = fullfile(pwd, 'closed_nose');
-% opened_path = fullfile(pwd, 'opened_nose'); %pwd - current folder
-% load_single_var = @(fpath) struct2array(load(fpath));
-% 
-% % 
-% % % Closed nose data
-% AC_closed = load_single_var(fullfile(closed_path, "AC.mat"));
-% BA_closed = load_single_var(fullfile(closed_path, "BA.mat"));
-% BO_closed = load_single_var(fullfile(closed_path, "BO.mat"));
-% CMY_closed = load_single_var(fullfile(closed_path, "CMY.mat"));
-% JD_closed = load_single_var(fullfile(closed_path, "JD.mat"));
-% Labels_closed = load_single_var(fullfile(closed_path, "Label_closed.mat"));
-% % 
-% % Opened nose data
-% HIO_opened    = load_single_var(fullfile(opened_path, "HIO.mat"));
-% KK_opened     = load_single_var(fullfile(opened_path, "KK.mat"));
-% KUA_opened    = load_single_var(fullfile(opened_path, "KUA.mat"));
-% SKT_opened    = load_single_var(fullfile(opened_path, "SK_T.mat"));
-% SM_opened     = load_single_var(fullfile(opened_path, "SM.mat"));
-% Labels_opened = load_single_var(fullfile(opened_path, "Label_opened.mat"));
-% 
-% 
-%  
-% % AC eyes closed : 1 trail 
-% AC_C_1 = squeeze(AC_closed(1,:,:)); % first trail
-% frequency = 250; %sampling frequency
-% time = (0:size(AC_C_1,1)-1) / frequency;
-% offset = 200;
-% 
-% figure(1)
-% hold on;
-% for channels = 1:size(AC_C_1, 2)
-%     plot(time, AC_C_1(:,channels) + (channels-1)*offset);
-% end
-% 
-% title("AC - eyes closed I trail")
-% ylabel("channels")
-% xlabel("time (s)");
-% xlim([0 5.12])
-% ylim([-100 3370])
-% yticks((0:size(AC_C_1,2)-1) * offset);
-% yticklabels({"CH1","CH2","CH3","CH4","CH5","CH6","CH7","CH8","CH9","CH10","CH11","CH12","CH13","CH14","CH15","CH16","CH17"});
-% grid on;
-% hold off;
-
-
-% closed_path = fullfile(pwd, 'closed_nose', 'AC.mat');
-% % lalala
-% tmp = load(closed_path);
-% data = struct2array(tmp);  % teraz: [160 × 1280 × 17]
-% offset = 256;
-% data_perm = permute(data, [3, 2, 1]);  % → [channels × time × trials] = [17 × 1280 × 160]
-% EEG_data_shaped = reshape(data_perm, 17, []);  % → [17 × (1280 * 160)] = [17 × 204800]
-% 
-% figure(1)
-% hold on;
-% for channels = 1:size(EEG_data_shaped, 2)
-%     plot(time, EEG_data_shaped(:,channels) + (channels-1)*offset);
-% end
-% 
-% grid on;
-% hold off;
-
-% all trails one channel
-
-
 %%Trail 2 
 
 clc
@@ -104,8 +32,11 @@ close all
 closed_path = fullfile(pwd, 'closed_nose', 'AC.mat');
 tmp = load(closed_path);
 data = struct2array(tmp);                                           % Size: [160 × 1280 × 17] = [trials × time × channels]
+channel_names = load("Channel_names.mat");
+channels = struct2array(channel_names);
 
-sampling_rate = 256;
+% Defininition of variables
+sampling_rate = 512;
 n_samples = 1280;
 n_trials = size(data, 1);                                           % 160 trials
 n_time = size(data, 2);                                             % 1280 time points per trial
@@ -113,17 +44,14 @@ n_channels = size(data, 3);                                         % 17 channel
 trial_duration_sec = n_time / sampling_rate;                        % 1280 / sampling rate
 total_duration_sec = n_trials * trial_duration_sec;
 
-Channel_names = ["F4" "F3" "F8" "F7" "FZ" "C4" "C3" "T4" "T3" "T6" "T5" "P4" "P3" "PZ" "O2" "O1" "OZ"];
-
 
 data_perm = permute(data, [3, 2, 1]);                               % [channels × time × trials]
 EEG_data_shaped = reshape(data_perm, n_channels, []);               % [17 × (1280*160)]
 
-time = linspace(0, total_duration_sec, size(EEG_data_shaped, 2));   % time for entire signal
+time = linspace(0, total_duration_sec, size(EEG_data_shaped, 2));   % time for entire signa
+offset = 300;                                                       % separation between channels
 
-offset = 300;                                                       % vertical separation between channels
-
-
+%% Plot for the whole time range
 figure(1);
 hold on;
 
@@ -135,15 +63,16 @@ title('Continuous EEG plot — all 160 trials concatenated (AC, closed nose)');
 xlabel('Time (s)');
 ylabel('Channels');
 yticks((0:n_channels-1) * offset);
+yticklabels(channels(1:n_channels));
 ylim([-offset, offset * n_channels]);
 xlim([0, total_duration_sec]);
 grid on;
 hold off;
 
 
-% Plot for epochs 
-
-EEG_epoched = squeeze(data(1,:,:)); % 1280 x 17
+%% Plot for defined Epochs 
+epoch_num = 1;
+EEG_epoched = squeeze(data(epoch_num,:,:)); % 1280 x 17
 
 time_2 = (0:n_samples-1) / sampling_rate;
 
@@ -158,11 +87,86 @@ title('Partly EEG plot — Per epochs plot (AC, closed nose)');
 xlabel('Time (s)');
 ylabel('Channels');
 yticks((0:n_channels-1) * offset);
+yticklabels(channels(1:n_channels));
 ylim([-offset, offset * n_channels]);
 % xlim([0, total_duration_sec/sampling_rate]);
 grid on;
 hold off;
 
+
+%% Filtering the data
+
+% Low pass filter 
+
+% Use Butterworth Filters butter
+% Use filtfilt() for zero-phase filtering (no time delay)
+% Filter each channel separately to avoid cross-channel artifacts
+% Apply high-pass first, then low-pass
+% High-pass: 0.5 Hz instead of 0.1 Hz (removes DC drift without instability)
+% Low-pass: 30 Hz (same as yours, good for EEG)
+
+nyquist = sampling_rate / 2;
+low_cutoff = 0.5;
+high_cutoff = 30;
+filter_order = 2;
+
+[b_hp, a_hp] = butter(filter_order, low_cutoff / nyquist, 'high');
+[b_lp, a_lp] = butter(filter_order, high_cutoff / nyquist, 'low');
+
+EEG_filtered = zeros(size(EEG_data_shaped));
+
+for ch = 1:n_channels
+    hp_output = filtfilt(b_hp, a_hp, EEG_data_shaped(ch, :));
+    EEG_filtered(ch, :) = filtfilt(b_lp, a_lp, hp_output);
+end
+
+filt_perm = permute(EEG_filtered, [2, 1]);
+
+
+EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);  % [17 × 1280 × 160]
+
+trial_num = 1;
+EEG_filtered_epoched = squeeze(EEG_filtered_reshaped(:, :, trial_num));
+
+time_2 = (0:n_samples-1) / sampling_rate;
+
+figure(3);
+hold on;
+
+for ch = 1:n_channels
+    plot(time_2, (EEG_filtered_epoched(ch, :) + (ch - 1) * offset));
+end
+
+title('Partly EEG plot — Per epochs plot (AC, closed nose)');
+xlabel('Time (s)');
+ylabel('Channels');
+yticks((0:n_channels-1) * offset);
+yticklabels(channels(1:n_channels));
+ylim([-offset, offset * n_channels]);
+% xlim([0, total_duration_sec/sampling_rate]);
+grid on;
+hold off;
+
+
+% figure(3);
+% hold on;
+% 
+% for ch = 1:n_channels
+%     plot(time, hpf(ch, :) + (ch - 1) * offset);
+% end
+% 
+% title('Continuous EEG plot — all 160 trials concatenated (AC, closed nose)');
+% xlabel('Time (s)');
+% ylabel('Channels');
+% yticks((0:n_channels-1) * offset);
+% yticklabels(channels(1:n_channels));
+% ylim([-offset, offset * n_channels]);
+% xlim([0, total_duration_sec]);
+% grid on;
+% hold off;
+
+
+% High pass filter 
 
 
 
