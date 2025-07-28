@@ -98,19 +98,33 @@ end
 
 
 
-%% Filtering the data
-
-% Testing the data for different Filter Values
+%% Filtering Data - Fixed Version
 low_numbers = [0.5, 0.4, 0.3];
 high_numbers = [30, 35, 40];
 
-for z=1:length(low_numbers)
-    for y=1:length(high_numbers)
+combination_idx = 1;
+n_filter_combinations = length(low_numbers) * length(high_numbers);
+filter_labels = cell(n_filter_combinations, 1);
+avg_psd_results = cell(n_filter_combinations, 1);
+colors = lines(n_filter_combinations);
+
+%Stats
+results = [];
+filter_names = {};
+counter = 1;
+
+figure;
+hold on;
+
+for z = 1:length(low_numbers)
+    for y = 1:length(high_numbers)
         
         nyquist = sampling_rate / 2;
-        low_cutoff = low_numbers(1,z);
-        high_cutoff = high_numbers(1,y);
+        low_cutoff = low_numbers(z);
+        high_cutoff = high_numbers(y);
         filter_order = 2;
+        
+        filter_labels{combination_idx} = sprintf('HP=%.1f LP=%d', low_cutoff, high_cutoff);
         
         [b_hp, a_hp] = butter(filter_order, low_cutoff / nyquist, 'high');
         [b_lp, a_lp] = butter(filter_order, high_cutoff / nyquist, 'low');
@@ -122,113 +136,58 @@ for z=1:length(low_numbers)
             EEG_filtered(ch, :) = filtfilt(b_lp, a_lp, hp_output);
         end
         
-        filt_perm = permute(EEG_filtered, [2, 1]);
+        EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);
         
+        all_psd = [];
         
-        EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);  % [17 × 1280 × 160]
-        
-        trial_nums = [20, 21, 22, 23];
-        
-        figure_num = 100 + (z - 1) * length(high_numbers) + y;
-        figure(figure_num);        
-
-        for num = 1:length(trial_nums)
-            subplot(2, 2, num);
-            
-            EEG_filtered_epoched_1 = squeeze(EEG_filtered_reshaped(:, :, trial_nums(1)));
-            EEG_filtered_epoched_2 = squeeze(EEG_filtered_reshaped(:, :, trial_nums(2)));
-            EEG_filtered_epoched_3 = squeeze(EEG_filtered_reshaped(:, :, trial_nums(3)));
-            EEG_filtered_epoched_4 = squeeze(EEG_filtered_reshaped(:, :, trial_nums(4)));           
-
-            time_2 = (0:n_samples - 1) / sampling_rate;
-            hold on;
-        
-            for ch = 1:n_channels
-                plot(time_2, (EEG_filtered_epoched_1(ch, :) + (ch - 1) * offset), time_2, (EEG_filtered_epoched_1(ch, :) + (ch - 1) * offset), '--', ...
-                    time_2, (EEG_filtered_epoched_1(ch, :) + (ch - 1) * offset), '--', time_2, (EEG_filtered_epoched_1(ch, :) + (ch - 1) * offset), '--');
+        for chan = 1:n_channels
+            for trial = 1:n_trials
+                
+                trial_data = squeeze(EEG_filtered_reshaped(chan, :, trial));  % Single trail
+                
+                [psd_single, f] = pwelch(trial_data, [], [], [], sampling_rate);
+                
+                if isempty(all_psd)
+                    all_psd = psd_single;
+                    freq_vector = f;
+                else
+                    all_psd = [all_psd, psd_single];
+                end
             end
-        
-            title(['Filtered EEG — Trial ', num2str(trial_nums(num))]);
-            subtitle(['Filter: HP = ', num2str(low_cutoff), ' Hz, LP = ', num2str(high_cutoff), ' Hz']);
-            xlabel('Time (s)');
-            ylabel('Channels');
-            yticks((0:n_channels - 1) * offset);
-            yticklabels(channels(1:n_channels));
-            ylim([-offset, offset * n_channels]);
-            xlim([0, 2.5]);
-            grid on;
-            hold off;
         end
+        
+
+        delta_power = sum(all_psd(f >= 0.5 & f <= 4));
+        alpha_power = sum(all_psd(f >= 8 & f <= 13));
+        beta_power = sum(all_psd(f >= 13 & f <= 30));
+        gamma_power = sum(all_psd(f >= 30 & f <= 45));
+        noise_level = sum(all_psd(f >= 45 & f <= 50));
+
+        avg_psd = mean(all_psd, 2);
+        avg_psd_results{combination_idx} = avg_psd;
+        
+        semilogy(freq_vector, avg_psd, 'Color', colors(combination_idx, :), 'LineWidth', 2);
+        
+        combination_idx = combination_idx + 1;
+
+        results(counter, :) = [delta_power, alpha_power, beta_power, gamma_power, noise_level];
+        filter_names{counter} = sprintf('HP=%.1f LP=%d', low_cutoff, high_cutoff);
+        
+        fprintf('%s\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n', ...
+            filter_names{counter}, delta_power, alpha_power, beta_power, gamma_power, noise_level);
+        
+        counter = counter + 1;
+
     end
 end
 
+title('Average PSD Across All Channels and Trials');
+xlabel('Frequency (Hz)');
+ylabel('PSD (μV²/Hz)');
+xlim([0 50]);
+legend(filter_labels, 'Location', 'best');
+grid on;
+hold off;
 
 
-%% Filtering Data - different approach
-
-
-% we want to maybe ((((??????))))) plot it on a one figure (4 subplots but
-% different colors line etc to see the differences.
-
-% Testing the data for different Filter Values
-low_numbers = [0.5, 0.4, 0.3];
-high_numbers = [30, 35, 40];
-
-for z=1:length(low_numbers)
-    for y=1:length(high_numbers)
-        
-        nyquist = sampling_rate / 2;
-        low_cutoff = low_numbers(1,z);
-        high_cutoff = high_numbers(1,y);
-        filter_order = 2;
-        
-        [b_hp, a_hp] = butter(filter_order, low_cutoff / nyquist, 'high');
-        [b_lp, a_lp] = butter(filter_order, high_cutoff / nyquist, 'low');
-        
-        EEG_filtered = zeros(size(EEG_data_shaped));
-        
-        for ch = 1:n_channels
-            hp_output = filtfilt(b_hp, a_hp, EEG_data_shaped(ch, :));
-            EEG_filtered(ch, :) = filtfilt(b_lp, a_lp, hp_output);
-        end
-        
-        filt_perm = permute(EEG_filtered, [2, 1]);
-        
-        
-        EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);  % [17 × 1280 × 160]
-        
-        trial_nums = [20, 21, 22, 23];
-        
-        figure(100);        
-
-        for num = 1:length(trial_nums)
-            subplot(2, 2, num);
-            
-            EEG_filtered_epoched = squeeze(EEG_filtered_reshaped(:, :, trial_nums(num)));
-            
-            time_2 = (0:n_samples - 1) / sampling_rate;
-            hold on;
-        
-            for ch = 1:n_channels
-                plot(time_2, EEG_filtered_epoched(ch, :) + (ch - 1) * offset);
-            end
-        
-            title(['Filtered EEG — Trial ', num2str(trial_nums(num))]);
-            subtitle(['Filter: HP = ', num2str(low_cutoff), ' Hz, LP = ', num2str(high_cutoff), ' Hz']);
-            xlabel('Time (s)');
-            ylabel('Channels');
-            yticks((0:n_channels - 1) * offset);
-            yticklabels(channels(1:n_channels));
-            ylim([-offset, offset * n_channels]);
-            xlim([0, 2.5]);
-            grid on;
-            hold off;
-
-            
-        end
-    end
-end
-
-
-
-
+%% We choose 
