@@ -53,7 +53,7 @@ offset = 300;                                                       % separation
 
 %% Plot for the whole time range
 
-figure(1);
+figure;
 hold on;
 
 for ch = 1:n_channels
@@ -70,12 +70,31 @@ xlim([0, total_duration_sec]);
 grid on;
 hold off;
 
+%% Plot PSD for the whole set
+figure;
+
+all_psds = [];
+for ch = 1:n_channels
+    [psd_single, f] = pwelch(EEG_data_shaped(ch, :), [], [], [], sampling_rate);
+    all_psds = [all_psds, psd_single];
+end
+
+avg_psd = mean(all_psds, 2);
+avg_psd_db = 10*log10(avg_psd);
+
+plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1,'Color',"#7E2F8E");
+title('Average PSD Across All Channels and Trials', 'FontSize', 10);
+xlabel('Frequency (Hz)');
+ylabel('PSD (dB)');
+xlim([0 258]);
+ylim([-25 40]);
+grid on;
 
 %% Plot for defined Epochs 
 epoch_num = [20, 21, 22, 23];
 time_2 = (0:n_samples-1) / sampling_rate;
 
-figure(2);
+figure;
 
 for num_epochs = 1:length(epoch_num)
     subplot(2, 2, num_epochs);
@@ -98,96 +117,150 @@ end
 
 
 
-%% Filtering Data - Fixed Version
-low_numbers = [0.5, 0.4, 0.3];
-high_numbers = [30, 35, 40];
+%% Filtering Data - Analysis
+% low_numbers = [0.5, 0.4, 0.3];
+% high_numbers = [30, 35, 40];
+% 
+% combination_idx = 1;
+% n_filter_combinations = length(low_numbers) * length(high_numbers);
+% filter_labels = cell(n_filter_combinations, 1);
+% avg_psd_results = cell(n_filter_combinations, 1);
+% colors = lines(n_filter_combinations);
+% 
+% %Stats
+% results = [];
+% filter_names = {};
+% counter = 1;
+% 
+% figure;
+% hold on;
+% 
+% for z = 1:length(low_numbers)
+%     for y = 1:length(high_numbers)
+%         
+%         nyquist = sampling_rate / 2;
+%         low_cutoff = low_numbers(z);
+%         high_cutoff = high_numbers(y);
+%         filter_order = 2;
+%         
+%         filter_labels{combination_idx} = sprintf('HP=%.1f LP=%d', low_cutoff, high_cutoff);
+%         
+%         [b_hp, a_hp] = butter(filter_order, low_cutoff / nyquist, 'high');
+%         [b_lp, a_lp] = butter(filter_order, high_cutoff / nyquist, 'low');
+%         
+%         EEG_filtered = zeros(size(EEG_data_shaped));
+%         
+%         for ch = 1:n_channels
+%             hp_output = filtfilt(b_hp, a_hp, EEG_data_shaped(ch, :));
+%             EEG_filtered(ch, :) = filtfilt(b_lp, a_lp, hp_output);
+%         end
+%         
+%         EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);
+%         
+%         all_psd = [];
+%         
+%         for chan = 1:n_channels
+%             for trial = 1:n_trials
+%                 
+%                 trial_data = squeeze(EEG_filtered_reshaped(chan, :, trial));  % Single trail
+%                 
+%                 [psd_single, f] = pwelch(trial_data, [], [], [], sampling_rate);
+%                 
+%                 if isempty(all_psd)
+%                     all_psd = psd_single;
+%                     freq_vector = f;
+%                 else
+%                     all_psd = [all_psd, psd_single];
+%                 end
+%             end
+%         end
+%         
+% 
+%         delta_power = sum(all_psd(f >= 0.5 & f <= 4));
+%         alpha_power = sum(all_psd(f >= 8 & f <= 13));
+%         beta_power = sum(all_psd(f >= 13 & f <= 30));
+%         gamma_power = sum(all_psd(f >= 30 & f <= 45));
+%         noise_level = sum(all_psd(f >= 45 & f <= 50));
+% 
+%         avg_psd = mean(all_psd, 2);
+%         avg_psd_results{combination_idx} = avg_psd;
+%         
+%         plot(freq_vector, 10*log10(avg_psd), 'Color', colors(combination_idx, :), 'LineWidth', 2); ylabel('Power (dB μV²/Hz)');
+%         combination_idx = combination_idx + 1;
+% 
+%         results(counter, :) = [delta_power, alpha_power, beta_power, gamma_power, noise_level];
+%         filter_names{counter} = sprintf('HP=%.1f LP=%d', low_cutoff, high_cutoff);
+%         
+%         fprintf('%s\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n', ...
+%             filter_names{counter}, delta_power, alpha_power, beta_power, gamma_power, noise_level);
+%         
+%         counter = counter + 1;
+% 
+%     end
+% end
+% 
+% title('Average PSD Across All Channels and Trials');
+% xlabel('Frequency (Hz)');
+% ylabel('PSD (μV²/Hz)');
+% xlim([0 50]);
+% legend(filter_labels, 'Location', 'best');
+% grid on;
+% hold off;
 
-combination_idx = 1;
-n_filter_combinations = length(low_numbers) * length(high_numbers);
-filter_labels = cell(n_filter_combinations, 1);
-avg_psd_results = cell(n_filter_combinations, 1);
-colors = lines(n_filter_combinations);
+%% Result HPF, LPF
+low_numbers = 0.5;
+high_numbers = 30;
+nyquist = sampling_rate / 2;
+[b_hp_r, a_hp_r] = butter(2, low_numbers / nyquist, 'high');
+[b_lp_r, a_lp_r] = butter(2, high_numbers / nyquist, 'low');
+EEG_filter = zeros(size(EEG_data_shaped));
+    for ch = 1:n_channels
+        hp_output = filtfilt(b_hp_r, a_hp_r, EEG_data_shaped(ch, :));
+        EEG_filter(ch, :) = filtfilt(b_lp_r, a_lp_r, hp_output);
+    end
+        
+EEG_filtered_result = reshape(EEG_filter, n_channels, n_samples, n_trials);
 
-%Stats
-results = [];
-filter_names = {};
-counter = 1;
 
+%% All time after filtering 
 figure;
 hold on;
 
-for z = 1:length(low_numbers)
-    for y = 1:length(high_numbers)
-        
-        nyquist = sampling_rate / 2;
-        low_cutoff = low_numbers(z);
-        high_cutoff = high_numbers(y);
-        filter_order = 2;
-        
-        filter_labels{combination_idx} = sprintf('HP=%.1f LP=%d', low_cutoff, high_cutoff);
-        
-        [b_hp, a_hp] = butter(filter_order, low_cutoff / nyquist, 'high');
-        [b_lp, a_lp] = butter(filter_order, high_cutoff / nyquist, 'low');
-        
-        EEG_filtered = zeros(size(EEG_data_shaped));
-        
-        for ch = 1:n_channels
-            hp_output = filtfilt(b_hp, a_hp, EEG_data_shaped(ch, :));
-            EEG_filtered(ch, :) = filtfilt(b_lp, a_lp, hp_output);
-        end
-        
-        EEG_filtered_reshaped = reshape(EEG_filtered, n_channels, n_samples, n_trials);
-        
-        all_psd = [];
-        
-        for chan = 1:n_channels
-            for trial = 1:n_trials
-                
-                trial_data = squeeze(EEG_filtered_reshaped(chan, :, trial));  % Single trail
-                
-                [psd_single, f] = pwelch(trial_data, [], [], [], sampling_rate);
-                
-                if isempty(all_psd)
-                    all_psd = psd_single;
-                    freq_vector = f;
-                else
-                    all_psd = [all_psd, psd_single];
-                end
-            end
-        end
-        
-
-        delta_power = sum(all_psd(f >= 0.5 & f <= 4));
-        alpha_power = sum(all_psd(f >= 8 & f <= 13));
-        beta_power = sum(all_psd(f >= 13 & f <= 30));
-        gamma_power = sum(all_psd(f >= 30 & f <= 45));
-        noise_level = sum(all_psd(f >= 45 & f <= 50));
-
-        avg_psd = mean(all_psd, 2);
-        avg_psd_results{combination_idx} = avg_psd;
-        
-        semilogy(freq_vector, avg_psd, 'Color', colors(combination_idx, :), 'LineWidth', 2);
-        
-        combination_idx = combination_idx + 1;
-
-        results(counter, :) = [delta_power, alpha_power, beta_power, gamma_power, noise_level];
-        filter_names{counter} = sprintf('HP=%.1f LP=%d', low_cutoff, high_cutoff);
-        
-        fprintf('%s\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n', ...
-            filter_names{counter}, delta_power, alpha_power, beta_power, gamma_power, noise_level);
-        
-        counter = counter + 1;
-
-    end
+for ch = 1:n_channels
+    plot(time, EEG_filtered_result(ch, :) + (ch - 1) * offset);
 end
 
-title('Average PSD Across All Channels and Trials');
-xlabel('Frequency (Hz)');
-ylabel('PSD (μV²/Hz)');
-xlim([0 50]);
-legend(filter_labels, 'Location', 'best');
+title('Continuous EEG plot — After HPF, LPF (AC, closed nose)');
+xlabel('Time (s)');
+ylabel('Channels');
+yticks((0:n_channels-1) * offset);
+yticklabels(channels(1:n_channels));
+ylim([-offset, offset * n_channels]);
+xlim([0, total_duration_sec]);
 grid on;
 hold off;
 
 
-%% We choose 
+figure;
+all_psds = [];
+for ch = 1:n_channels
+    [psd_single, f] = pwelch(EEG_filtered_result(ch, :), [], [], [], sampling_rate);
+    all_psds = [all_psds, psd_single];
+end
+
+avg_psd = mean(all_psds, 2);
+avg_psd_db = 10*log10(avg_psd);
+
+plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1, 'Color',"#7E2F8E");
+title('Average PSD Across All Channels and Trials', 'FontSize', 10);
+subtitle("After HPF and LPF Filtering")
+xlabel('Frequency (Hz)');
+ylabel('PSD (dB)');
+xlim([0 258]);
+ylim([-80 40]);
+grid on;
+
+
+%% Denoising 
+
+
