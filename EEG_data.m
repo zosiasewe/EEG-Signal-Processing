@@ -1,29 +1,31 @@
 
 %% Description
+%{
 
-% Data set covers a project of Tasting 4 different materials
-% Subjects : 5 participants with Closed nose and 5 participant with opened nose
-% Materials used are discibed in the file "Label" as 1,2,3,4
+Data set covers a project of Tasting 4 different materials
+Subjects : 5 participants with Closed nose and 5 participant with opened nose
+Materials used are discibed in the file "Label" as 1,2,3,4
 
-% The data from each subjects consists : 160x1280x17 meaning: trails x time x channels
+The data from each subjects consists : 160x1280x17 meaning: trails x time x channels
 
-% The data was recorded using 512 Hz sampling frequency
-% Each epoch consists the recorded event of "tasting"
+The data was recorded using 512 Hz sampling frequency
+Each epoch consists the recorded event of "tasting"
 
-% What we want to achieve?
-% We want to perform a binary classification o both opened and closed eyes
-% We want to use ML algorithms for a robust classification of this
-% closed/open eyes 0/1 problem
-% For that we want to divide the problem into 5 subgroups:
-    % Test all of the data (160 trails)
-    % Test only TM1 ("Test material 1")
-    % Test only TM2 ("Test material 2")
-    % Test only TM3 ("Test material 3")
-    % Test only TM4 ("Test material 4")
+What we want to achieve?
+- We want to perform a binary classification on both opened and closed nose
+- We want to use ML algorithms for a robust classification of this closed/open nose 0/1 problem
+
+For that we want to divide the problem into 5 subgroups:
+    - Test all of the data (160 trails)
+    - Test only TM1 ("Test material 1")
+    - Test only TM2 ("Test material 2")
+    - Test only TM3 ("Test material 3")
+    - Test only TM4 ("Test material 4")
 
 
-% After this We want to do a research on BCI P300 and if the size of the
+After this We want to do a research on BCI P300 and if the size of the
 % screen matters 
+%}
 
 %% ---------------------------------------------------------------------------------------------------------------------------
 clc
@@ -60,7 +62,8 @@ for ch = 1:n_channels
     plot(time, EEG_data_shaped(ch, :) + (ch - 1) * offset);
 end
 
-title('Continuous EEG plot — all 160 trials concatenated (AC, closed nose)');
+title('Continuous EEG plot');
+subtitle('All 160 trials concatenated (AC, closed nose)')
 xlabel('Time (s)');
 ylabel('Channels');
 yticks((0:n_channels-1) * offset);
@@ -73,10 +76,25 @@ hold off;
 %% Plot PSD for the whole set
 figure;
 
+%SNR
+snr_raw_data = zeros(1, n_channels);
+signal_band = [0.5 30];
+noise_band = [45 100];
+
 all_psds = [];
+fprintf('SNR for Raw Data: \n')
 for ch = 1:n_channels
     [psd_single, f] = pwelch(EEG_data_shaped(ch, :), [], [], [], sampling_rate);
     all_psds = [all_psds, psd_single];
+
+    signal_indices = f >= signal_band(1) & f <= signal_band(2);
+    P_signal = sum(psd_single(signal_indices));
+    
+    noise_indices = f >= noise_band(1) & f <= noise_band(2);
+    P_noise = sum(psd_single(noise_indices));
+    
+    snr_raw_data(ch) = 10*log10(P_signal/P_noise);
+    fprintf('SNR = %.2f dB for %s\n', snr_raw_data(ch), channels{ch});
 end
 
 avg_psd = mean(all_psds, 2);
@@ -84,10 +102,11 @@ avg_psd_db = 10*log10(avg_psd);
 
 plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1,'Color',"#7E2F8E");
 title('Average PSD Across All Channels and Trials', 'FontSize', 10);
+subtitle('(AC, closed nose)')
 xlabel('Frequency (Hz)');
 ylabel('PSD (dB)');
-xlim([0 258]);
-ylim([-25 40]);
+xlim([0 256]);
+ylim([-80 40]);
 grid on;
 
 %% Plot for defined Epochs 
@@ -134,6 +153,7 @@ end
 % 
 % figure;
 % hold on;
+% fprintf('Filter\t\t\tDelta\t\tAlpha\t\tBeta\t\tGamma\t\tNoise\n')
 % 
 % for z = 1:length(low_numbers)
 %     for y = 1:length(high_numbers)
@@ -190,7 +210,6 @@ end
 % 
 %         results(counter, :) = [delta_power, alpha_power, beta_power, gamma_power, noise_level];
 %         filter_names{counter} = sprintf('HP=%.1f LP=%d', low_cutoff, high_cutoff);
-%         
 %         fprintf('%s\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n', ...
 %             filter_names{counter}, delta_power, alpha_power, beta_power, gamma_power, noise_level);
 %         
@@ -230,7 +249,8 @@ for ch = 1:n_channels
     plot(time, EEG_filtered_result(ch, :) + (ch - 1) * offset);
 end
 
-title('Continuous EEG plot — After HPF, LPF (AC, closed nose)');
+title('Continuous EEG plot');
+subtitle('After HPF, LPF (AC, closed nose)')
 xlabel('Time (s)');
 ylabel('Channels');
 yticks((0:n_channels-1) * offset);
@@ -240,12 +260,29 @@ xlim([0, total_duration_sec]);
 grid on;
 hold off;
 
-
+% --------
 figure;
+fprintf('\n')
+fprintf('SNR for Filtered Data: \n')
+%SNR
+snr_raw_data_f = zeros(1, n_channels);
+signal_band = [0.5 30];
+noise_band = [45 100];
+
 all_psds = [];
 for ch = 1:n_channels
     [psd_single, f] = pwelch(EEG_filtered_result(ch, :), [], [], [], sampling_rate);
     all_psds = [all_psds, psd_single];
+
+    signal_indices_f = f >= signal_band(1) & f <= signal_band(2);
+    P_signal_f = sum(psd_single(signal_indices_f));
+    
+    noise_indices_f = f >= noise_band(1) & f <= noise_band(2);
+    P_noise_f = sum(psd_single(noise_indices_f));
+    
+    snr_raw_data_f(ch) = 10*log10(P_signal_f/P_noise_f);
+    fprintf('SNR = %.2f dB for %s\n', snr_raw_data_f(ch), channels{ch});
+
 end
 
 avg_psd = mean(all_psds, 2);
@@ -253,14 +290,18 @@ avg_psd_db = 10*log10(avg_psd);
 
 plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1, 'Color',"#7E2F8E");
 title('Average PSD Across All Channels and Trials', 'FontSize', 10);
-subtitle("After HPF and LPF Filtering")
+subtitle("After HPF and LPF Filtering (AC, closed nose)")
 xlabel('Frequency (Hz)');
 ylabel('PSD (dB)');
-xlim([0 258]);
+xlim([0 256]);
 ylim([-80 40]);
 grid on;
 
 
+
+
+
 %% Denoising 
 
+% What is the best way to denoise my signal????
 
