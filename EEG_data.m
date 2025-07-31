@@ -110,7 +110,7 @@ ylim([-80 40]);
 grid on;
 
 %% Plot for defined Epochs 
-epoch_num = [20, 21, 22, 23];
+epoch_num = [40, 50, 60, 70];
 time_2 = (0:n_samples-1) / sampling_rate;
 
 figure;
@@ -124,6 +124,7 @@ for num_epochs = 1:length(epoch_num)
     end
 
     title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
+    subtitle('Before filtering (AC, closed nose)')
     xlabel('Time (s)');
     ylabel('Channels');
     yticks((0:n_channels - 1) * offset);
@@ -299,9 +300,37 @@ grid on;
 
 
 
+%% Plot for defined Epochs - after filtering
+epoch_num = [40, 50, 60, 70];
+time_2 = (0:n_samples-1) / sampling_rate;
 
+figure;
+
+for num_epochs = 1:length(epoch_num)
+    subplot(2, 2, num_epochs);
+    hold on;
+
+    for ch = 1:n_channels
+        plot(time_2, EEG_filtered_result(ch, :,epoch_num(num_epochs)) + (ch - 1) * offset);
+    end
+
+    title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
+    subtitle('After HPF, LPF (AC - closed nose)')
+    xlabel('Time (s)');
+    ylabel('Channels');
+    yticks((0:n_channels - 1) * offset);
+    yticklabels(channels(1:n_channels));
+    ylim([-offset, offset * n_channels]);
+    xlim([0, 2.5]);
+    grid on;
+    hold off;
+end
 
 %% Denoising 
 
 % What is the best way to denoise my signal????
+
+
+
+
 
