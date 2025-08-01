@@ -152,9 +152,8 @@ end
 % filter_names = {};
 % counter = 1;
 % 
-% figure;
-% hold on;
-% fprintf('Filter\t\t\tDelta\t\tAlpha\t\tBeta\t\tGamma\t\tNoise\n')
+% 
+% fprintf('\nFilter\t\t\tDelta\t\t\tAlpha\t\t\tBeta\t\t\tGamma\t\t\tNoise\n')
 % 
 % for z = 1:length(low_numbers)
 %     for y = 1:length(high_numbers)
@@ -206,26 +205,18 @@ end
 %         avg_psd = mean(all_psd, 2);
 %         avg_psd_results{combination_idx} = avg_psd;
 %         
-%         plot(freq_vector, 10*log10(avg_psd), 'Color', colors(combination_idx, :), 'LineWidth', 2); ylabel('Power (dB μV²/Hz)');
 %         combination_idx = combination_idx + 1;
 % 
 %         results(counter, :) = [delta_power, alpha_power, beta_power, gamma_power, noise_level];
 %         filter_names{counter} = sprintf('HP=%.1f LP=%d', low_cutoff, high_cutoff);
-%         fprintf('%s\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n', ...
+%         fprintf('%s\t%.4f\t\t\t%.4f\t\t\t%.4f\t\t\t%.4f\t\t\t%.4f\n', ...
 %             filter_names{counter}, delta_power, alpha_power, beta_power, gamma_power, noise_level);
 %         
 %         counter = counter + 1;
 % 
 %     end
 % end
-% 
-% title('Average PSD Across All Channels and Trials');
-% xlabel('Frequency (Hz)');
-% ylabel('PSD (μV²/Hz)');
-% xlim([0 50]);
-% legend(filter_labels, 'Location', 'best');
-% grid on;
-% hold off;
+
 
 %% Result HPF, LPF
 low_numbers = 0.5;
@@ -326,11 +317,32 @@ for num_epochs = 1:length(epoch_num)
     hold off;
 end
 
-%% Denoising 
+%% Artifact Removal - ICA
+% k means ????
+% Fast ICA
 
-% What is the best way to denoise my signal????
+A = [];
+x = EEG_filtered_result(:,:,:);
+n_independent_components = 4;
 
 
+% Centering
+x_reshaped = reshape(EEG_filtered_result, n_channels,[]);
+mean_EEG = mean(x_reshaped,2);                              %mean of each row - channel
+centered_data = x_reshaped - mean_EEG;
+centered_reshaped = reshape(centered_data, n_channels, n_samples, n_trials);
+
+% Whitening
+% All channels have unit variance (variance = 1)
+% All channels are uncorrelated (covariance between any two channels = 0)
+% Diagonal elements (like 75.85, 158.59, 316.94...): The variance of each individual channel
+% Off-diagonal elements: The covariance between pairs of channels
+
+C = cov(centered_data');
+[V,D] = eig(C);
+
+W_matrix = D^(-1/2)*V';
+W_result = W_matrix * centered_data;
 
 
 
