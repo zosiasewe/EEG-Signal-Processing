@@ -318,31 +318,47 @@ for num_epochs = 1:length(epoch_num)
 end
 
 %% Artifact Removal - ICA
-% k means ????
-% Fast ICA
 
 A = [];
 x = EEG_filtered_result(:,:,:);
 n_independent_components = 4;
 
-
-% Centering
 x_reshaped = reshape(EEG_filtered_result, n_channels,[]);
-mean_EEG = mean(x_reshaped,2);                              %mean of each row - channel
-centered_data = x_reshaped - mean_EEG;
-centered_reshaped = reshape(centered_data, n_channels, n_samples, n_trials);
 
-% Whitening
-% All channels have unit variance (variance = 1)
-% All channels are uncorrelated (covariance between any two channels = 0)
-% Diagonal elements (like 75.85, 158.59, 316.94...): The variance of each individual channel
-% Off-diagonal elements: The covariance between pairs of channels
+n_independent_components = 4;  % Number of components to extract
+[ica_components, W_ica, A_ica] = ICA(x_reshaped, n_independent_components, 1000, 1e-6, 1.0);
 
-C = cov(centered_data');
-[V,D] = eig(C);
-
-W_matrix = D^(-1/2)*V';
-W_result = W_matrix * centered_data;
+ica_reshaped = reshape(ica_components, n_independent_components, n_samples, n_trials);
 
 
+%% Power Spectral Density ICA
+figure();
+for c = 1:n_independent_components
+    subplot(2, 2, c);
+    [psd_comp, f_comp] = pwelch(ica_components(c, :), [], [], [], sampling_rate);
+    psd_db = 10*log10(psd_comp);
+    
+    plot(f_comp, psd_db, 'LineWidth', 1.5);
+    title(['ICA Component ', num2str(c), ' - Power Spectral Density']);
+    xlabel('Frequency (Hz)');
+    ylabel('Power (dB)');
+    xlim([0, 100]);
+    grid on;
+end
+
+
+%% Delete the artifacts
+artifact_components = [];
+
+A_clean = A_ica;
+A_clean(:, artifact_components) = 0;
+
+clean_components = ica_components;
+clean_components(artifact_components, :) = 0;
+
+clean_signal = A_clean * clean_components;
+clean_eeg = reshape(clean_signal, n_channels, n_samples, n_trials);
+
+
+%% Feature Extraction
 
