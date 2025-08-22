@@ -232,19 +232,26 @@ end
 
 
 %% Result HPF, LPF
-low_numbers = 0.5;
-high_numbers = 30;
-nyquist = sampling_rate / 2;
-[b_hp_r, a_hp_r] = butter(2, low_numbers / nyquist, 'high');
-[b_lp_r, a_lp_r] = butter(2, high_numbers / nyquist, 'low');
-EEG_filter = zeros(size(EEG_data_shaped));
-    for ch = 1:n_channels
-        hp_output = filtfilt(b_hp_r, a_hp_r, EEG_data_shaped(ch, :));
-        EEG_filter(ch, :) = filtfilt(b_lp_r, a_lp_r, hp_output);
-    end
-        
-EEG_filtered_result = reshape(EEG_filter, n_channels, n_samples, n_trials);
+low_cut = 0.5;
+high_cut = 30;
+order = 2;
 
+EEG_filtered_result = zeros(n_channels, n_samples, n_trials, 5); 
+
+for i = 1:5
+    nyquist = sampling_rate / 2;
+    [b_hp, a_hp] = butter(order, low_cut / nyquist, 'high');
+    [b_lp, a_lp] = butter(order, high_cut / nyquist, 'low');
+    
+    EEG_filter = zeros(size(EEG_data_shaped{i}));
+    
+    for ch = 1:n_channels
+        hp_signal = filtfilt(b_hp, a_hp, EEG_data_shaped{i}(ch, :));
+        EEG_filter(ch, :) = filtfilt(b_lp, a_lp, hp_signal);
+    end
+    
+    EEG_filtered_result(:,:,:,i) = reshape(EEG_filter, n_channels, n_samples, n_trials);
+end
 
 %% All time after filtering 
 figure;
