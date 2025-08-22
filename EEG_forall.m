@@ -254,118 +254,136 @@ for i = 1:5
 end
 
 %% All time after filtering 
-figure;
-hold on;
-
-for ch = 1:n_channels
-    plot(time, EEG_filtered_result(ch, :) + (ch - 1) * offset);
-end
-
-title('Continuous EEG plot');
-subtitle('After HPF, LPF (AC, closed nose)')
-xlabel('Time (s)');
-ylabel('Channels');
-yticks((0:n_channels-1) * offset);
-yticklabels(channels(1:n_channels));
-ylim([-offset, offset * n_channels]);
-xlim([0, total_duration_sec]);
-grid on;
-hold off;
-
-% --------
-figure;
-fprintf('\n')
-fprintf('SNR for Filtered Data: \n')
-%SNR
-snr_raw_data_f = zeros(1, n_channels);
-signal_band = [0.5 30];
-noise_band = [45 100];
-
-all_psds = [];
-for ch = 1:n_channels
-    [psd_single, f] = pwelch(EEG_filtered_result(ch, :), [], [], [], sampling_rate);
-    all_psds = [all_psds, psd_single];
-
-    signal_indices_f = f >= signal_band(1) & f <= signal_band(2);
-    P_signal_f = sum(psd_single(signal_indices_f));
+for i=1:5
+    EEG_filtered_long = reshape(EEG_filtered_result(:,:,:,i), n_channels, []);
     
-    noise_indices_f = f >= noise_band(1) & f <= noise_band(2);
-    P_noise_f = sum(psd_single(noise_indices_f));
-    
-    snr_raw_data_f(ch) = 10*log10(P_signal_f/P_noise_f);
-    fprintf('SNR = %.2f dB for %s\n', snr_raw_data_f(ch), channels{ch});
-
-end
-
-avg_psd = mean(all_psds, 2);
-avg_psd_db = 10*log10(avg_psd);
-
-plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1, 'Color',"#7E2F8E");
-title('Average PSD Across All Channels and Trials', 'FontSize', 10);
-subtitle("After HPF and LPF Filtering (AC, closed nose)")
-xlabel('Frequency (Hz)');
-ylabel('PSD (dB)');
-xlim([0 256]);
-ylim([-80 40]);
-grid on;
-
-
-
-%% Plot for defined Epochs - after filtering
-epoch_num = [40, 50, 60, 70];
-time_2 = (0:n_samples-1) / sampling_rate;
-
-figure;
-
-for num_epochs = 1:length(epoch_num)
-    subplot(2, 2, num_epochs);
+    figure;
     hold on;
-
     for ch = 1:n_channels
-        plot(time_2, EEG_filtered_result(ch, :,epoch_num(num_epochs)) + (ch - 1) * offset);
+        plot(time, EEG_filtered_long(ch, :) + (ch - 1) * offset);
     end
-
-    title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
-    subtitle('After HPF, LPF (AC - closed nose)')
+    
+    title('Continuous EEG plot');
+    subtitle(['After HPF and LPF (' closed_names{i} ', closed nose)']);
     xlabel('Time (s)');
     ylabel('Channels');
-    yticks((0:n_channels - 1) * offset);
+    yticks((0:n_channels-1) * offset);
     yticklabels(channels(1:n_channels));
     ylim([-offset, offset * n_channels]);
-    xlim([0, 2.5]);
+    xlim([0, total_duration_sec]);
+    grid on;
+    hold off;
+
+    
+    % --------
+    figure;
+    fprintf('\n')
+    fprintf(['Subject: ' closed_names{i} '\n']);
+    fprintf('SNR for Filtered Data: \n')
+    %SNR
+    snr_raw_data_f = zeros(1, n_channels);
+    signal_band = [0.5 30];
+    noise_band = [45 100];
+    
+    all_psds = [];
+    for ch = 1:n_channels
+        [psd_single, f] = pwelch(EEG_filtered_long(ch, :), [], [], [], sampling_rate);
+        all_psds = [all_psds, psd_single];
+    
+        signal_indices_f = f >= signal_band(1) & f <= signal_band(2);
+        P_signal_f = sum(psd_single(signal_indices_f));
+        
+        noise_indices_f = f >= noise_band(1) & f <= noise_band(2);
+        P_noise_f = sum(psd_single(noise_indices_f));
+        
+        snr_raw_data_f(ch) = 10*log10(P_signal_f/P_noise_f);
+        fprintf('SNR = %.2f dB for %s\n', snr_raw_data_f(ch), channels{ch});
+    
+    end
+    
+    avg_psd = mean(all_psds, 2);
+    avg_psd_db = 10*log10(avg_psd);
+    
+    plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1, 'Color',"#7E2F8E");
+    title('Average PSD Across All Channels and Trials', 'FontSize', 10);
+    subtitle("After HPF and LPF Filtering (AC, closed nose)")
+    xlabel('Frequency (Hz)');
+    ylabel('PSD (dB)');
+    xlim([0 256]);
+    ylim([-80 40]);
+    grid on;
+
+end
+
+%% Plot for defined Epochs - after filtering
+for i=1:5
+    epoch_num = [40, 50, 60, 70];
+    time_2 = (0:n_samples-1) / sampling_rate;
+    
+    figure;
+    
+    for num_epochs = 1:length(epoch_num)
+        subplot(2, 2, num_epochs);
+        hold on;
+    
+        for ch = 1:n_channels
+            plot(time_2, EEG_filtered_result(ch, :,epoch_num(num_epochs),i) + (ch - 1) * offset);
+        end
+    
+        title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
+        subtitle('After HPF, LPF (AC - closed nose)')
+        xlabel('Time (s)');
+        ylabel('Channels');
+        yticks((0:n_channels - 1) * offset);
+        yticklabels(channels(1:n_channels));
+        ylim([-offset, offset * n_channels]);
+        xlim([0, 2.5]);
+        grid on;
+        hold off;
+    end
+end
+
+%% Artifact Removal
+for i = 1:5 
+    x = EEG_filtered_result(:,:,:,i);
+    x_reshaped = reshape(x, n_channels, []);
+    
+    % ICA
+    n_independent_components = 4;
+    [ica_components, W_ica, A_ica] = ICA(x_reshaped, n_independent_components, 1000, 1e-6, 1.0);
+    
+    ica_reshaped = reshape(ica_components, n_independent_components, n_samples, n_trials);
+    
+    %% Power Spectral Density for ICA
+    trial_to_plot = 1;
+    figure();
+    for c = 1:n_independent_components
+        subplot(2,2,c);
+        [psd_comp, f_comp] = pwelch(ica_reshaped(c, :, trial_to_plot), [], [], [], sampling_rate);
+        psd_db = 10*log10(psd_comp);
+        
+        plot(f_comp, psd_db, 'LineWidth', 1.5);
+        title(['ICA Component ', num2str(c), ' - PSD']);
+        xlabel('Frequency (Hz)');
+        ylabel('Power (dB)');
+        xlim([0, 100]);
+        grid on;
+    end
+    
+    figure;
+    offset_ica = 50;
+    hold on;
+    for c = 1:n_independent_components
+        plot(time_2, ica_reshaped(c, :, trial_to_plot) + (c-1)*offset_ica);
+    end
+    title(['ICA Components - Trial ', num2str(trial_to_plot)]);
+    xlabel('Time (s)');
+    ylabel('Components');
+    yticks((0:n_independent_components-1)*offset_ica);
+    ylim([-offset_ica, n_independent_components*offset_ica]);
     grid on;
     hold off;
 end
-
-%% Artifact Removal - ICA
-
-A = [];
-x = EEG_filtered_result(:,:,:);
-n_independent_components = 4;
-
-x_reshaped = reshape(EEG_filtered_result, n_channels,[]);
-
-n_independent_components = 4;  % Number of components to extract
-[ica_components, W_ica, A_ica] = ICA(x_reshaped, n_independent_components, 1000, 1e-6, 1.0);
-
-ica_reshaped = reshape(ica_components, n_independent_components, n_samples, n_trials);
-
-
-%% Power Spectral Density ICA
-figure();
-for c = 1:n_independent_components
-    subplot(2, 2, c);
-    [psd_comp, f_comp] = pwelch(ica_components(c, :), [], [], [], sampling_rate);
-    psd_db = 10*log10(psd_comp);
-    
-    plot(f_comp, psd_db, 'LineWidth', 1.5);
-    title(['ICA Component ', num2str(c), ' - Power Spectral Density']);
-    xlabel('Frequency (Hz)');
-    ylabel('Power (dB)');
-    xlim([0, 100]);
-    grid on;
-end
-
 
 %% Delete the artifacts
 artifact_components = [];
