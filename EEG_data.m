@@ -360,5 +360,206 @@ clean_signal = A_clean * clean_components;
 clean_eeg = reshape(clean_signal, n_channels, n_samples, n_trials);
 
 
-%% Feature Extraction
 
+%% Raw Feature Extraction (Time + Frequency + Nonlinear)
+
+n_trials = size(clean_eeg, 3);
+n_channels = size(clean_eeg, 1);
+
+% Frequency bands
+bands = [0.5 4; 4 8; 8 13; 13 30; 30 100];  % Delta, Theta, Alpha, Beta, Gamma
+n_bands = size(bands, 1);
+
+feature_matrix = [];
+for trial = 1:n_trials
+    trial_features = [];
+    for ch = 1:n_channels
+        x = squeeze(clean_eeg(ch, :, trial)); % single trial, single channel
+        
+        % Time Domain Features
+        mu = mean(x);
+        sigma2 = var(x);
+        sigma = sqrt(sigma2);
+        skew_val = skewness(x);
+        kurt_val = kurtosis(x);
+        RMS_val = sqrt(mean(x.^2));
+        ZCR_val = sum(abs(diff(sign(x)))) / (2*(length(x)-1));
+        MAD_val = mean(abs(x - mu));
+        PtP_val = max(x) - min(x);
+        v = diff(x);        % first difference
+        a = diff(v);        % second difference
+        vRMS = sqrt(mean(v.^2));
+        aRMS = sqrt(mean(a.^2));
+
+        time_features = [mu, sigma2, sigma, skew_val, kurt_val, RMS_val, ZCR_val, MAD_val, PtP_val, vRMS, aRMS];
+
+        % Frequency Domain Features
+        [pxx, f] = pwelch(x, [], [], [], sampling_rate);
+        band_powers = zeros(1, n_bands);
+        for b = 1:n_bands
+            idx = f >= bands(b,1) & f <= bands(b,2);
+            band_powers(b) = sum(pxx(idx));
+        end
+        [~, peak_idx] = max(pxx);
+        f_peak = f(peak_idx);
+        f_mean = sum(f.*pxx)/sum(pxx);
+        SC = sum(f.*pxx)/sum(pxx);  % spectral centroid
+        SS = sqrt(sum(((f-SC).^2).*pxx)/sum(pxx)); % spectral spread
+        P_norm = pxx/sum(pxx);
+        H = -sum(P_norm.*log(P_norm + eps)); % spectral entropy
+        
+        freq_features = [band_powers, f_peak, f_mean, SC, SS, H];
+
+        % Nonlinear Features
+        % Hjorth Parameters
+        Activity = var(x);
+        Mobility = sqrt(var(diff(x))/Activity);
+        Complexity = sqrt(var(diff(diff(x)))/var(diff(x)))/Mobility;
+
+        nonlinear_features = [Activity, Mobility, Complexity];
+
+        %Combine features
+        trial_features = [trial_features, time_features, freq_features, nonlinear_features];
+    end
+    feature_matrix = [feature_matrix; trial_features];
+end
+
+% Normalize Features
+feature_matrix = (feature_matrix - mean(feature_matrix)) ./ std(feature_matrix);
+fprintf('Feature matrix size: [%d x %d]\n', size(feature_matrix,1), size(feature_matrix,2));
+
+
+%% GA
+
+[n_trials, n_features] = size(feature_matrix);
+epsilon = 1e-6;
+
+n_pop = 30;
+n_gen = 20;
+mutation_rate = 0.1;
+
+% Initialize population
+pop = zeros(n_pop, 2*n_features);
+pop(:, 1:n_features) = 0.5 + 1.5*rand(n_pop, n_features);  % scaling 0.5-2
+pop(:, n_features+1:end) = randi([0,3], n_pop, n_features); % transformation 0-3
+
+best_fitness = -Inf;
+best_chrom = pop(1,:);
+
+for gen = 1:n_gen
+    fitness = zeros(n_pop,1);
+    
+    for i = 1:n_pop
+        chrom = pop(i,:);
+        
+        % Apply chromosome
+        X_trans = zeros(size(feature_matrix));
+        scales = chrom(1:n_features);
+        transforms = round(chrom(n_features+1:end));
+        
+        for f = 1:n_features
+            x = feature_matrix(:,f) * scales(f);  % scale
+            switch transforms(f)
+                case 0
+                    X_trans(:,f) = x;
+                case 1
+                    X_trans(:,f) = log(x + epsilon);
+                case 2
+                    X_trans(:,f) = sqrt(max(x + epsilon,0));
+                case 3
+                    X_trans(:,f) = x.^2;
+            end
+        end
+        
+        % Fuzzy membership: low, medium, high
+        fuzzy_mat = zeros(n_trials, n_features, 3); % 3 membership levels
+        for f = 1:n_features
+            f_min = min(X_trans(:,f));
+            f_max = max(X_trans(:,f));
+            f_range = f_max - f_min + epsilon;
+            
+            % Triangular membership functions
+            fuzzy_mat(:,f,1) = max(0, min(1, (0.5*(f_min+f_max) - X_trans(:,f)) / (0.5*f_range))); % low
+            fuzzy_mat(:,f,2) = max(0, 1 - abs(X_trans(:,f) - 0.5*(f_min+f_max)) / (0.5*f_range));  % medium
+            fuzzy_mat(:,f,3) = max(0, min(1, (X_trans(:,f) - 0.5*(f_min+f_max)) / (0.5*f_range))); % high
+        end
+        
+        % Fuzzy entropy per feature
+        entropy_sum = 0;
+        for f = 1:n_features
+            p = mean(squeeze(fuzzy_mat(:,f,:)),1);  % average membership across trials
+            p = p / sum(p + epsilon);               % normalize
+            entropy_sum = entropy_sum - sum(p.*log2(p + epsilon));
+        end
+        
+        fitness(i) = entropy_sum;  % maximize entropy
+    end
+    
+    [max_fit, idx] = max(fitness);
+    if max_fit > best_fitness
+        best_fitness = max_fit;
+        best_chrom = pop(idx,:);
+    end
+    
+    fprintf('Generation %d, Best Score = %.4f\n', gen, best_fitness);
+    
+    % Selection (tournament)
+    new_pop = zeros(size(pop));
+    for i = 1:n_pop
+        idx1 = randi(n_pop);
+        idx2 = randi(n_pop);
+        if fitness(idx1) > fitness(idx2)
+            new_pop(i,:) = pop(idx1,:);
+        else
+            new_pop(i,:) = pop(idx2,:);
+        end
+    end
+    
+    % Crossover (single point)
+    for i = 1:2:n_pop-1
+        if rand < 0.8
+            cp = randi(2*n_features-1);
+            temp1 = new_pop(i,cp+1:end);
+            temp2 = new_pop(i+1,cp+1:end);
+            new_pop(i,cp+1:end) = temp2;
+            new_pop(i+1,cp+1:end) = temp1;
+        end
+    end
+    
+    % Mutation
+    for i = 1:n_pop
+        for j = 1:2*n_features
+            if rand < mutation_rate
+                if j <= n_features
+                    new_pop(i,j) = 0.5 + 1.5*rand;
+                else
+                    new_pop(i,j) = randi([0,3]);
+                end
+            end
+        end
+    end
+    
+    pop = new_pop;
+end
+
+% transformed feature matrix
+scales = best_chrom(1:n_features);
+transforms = round(best_chrom(n_features+1:end));
+
+X_transformed = zeros(size(feature_matrix));
+for f = 1:n_features
+    x = feature_matrix(:,f) * scales(f);
+    switch transforms(f)
+        case 0
+            X_transformed(:,f) = x;
+        case 1
+            X_transformed(:,f) = log(x + epsilon);
+        case 2
+            X_transformed(:,f) = sqrt(max(x + epsilon,0));
+        case 3
+            X_transformed(:,f) = x.^2;
+    end
+end
+
+fprintf('GA + Fuzzy Feature Extraction completed. Transformed matrix size: [%d x %d]\n', ...
+    size(X_transformed,1), size(X_transformed,2));
