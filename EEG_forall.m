@@ -1,12 +1,10 @@
-
 %% Description
 %{
-
 Data set covers a project of Tasting 4 different materials
 Subjects : 5 participants with Closed nose and 5 participant with opened nose
-Materials used are discibed in the file "Label" as 1,2,3,4
+Materials used are described in the file "Label" as 1,2,3,4
 
-The data from each subjects consists : 160x1280x17 meaning: trails x time x channels
+The data from each subjects consists : 160x1280x17 meaning: trials x time x channels
 
 The data was recorded using 512 Hz sampling frequency
 Each epoch consists the recorded event of "tasting"
@@ -16,15 +14,11 @@ What we want to achieve?
 - We want to use ML algorithms for a robust classification of this closed/open nose 0/1 problem
 
 For that we want to divide the problem into 5 subgroups:
-    - Test all of the data (160 trails)
+    - Test all of the data (160 trials)
     - Test only TM1 ("Test material 1")
     - Test only TM2 ("Test material 2")
     - Test only TM3 ("Test material 3")
     - Test only TM4 ("Test material 4")
-
-
-After this We want to do a research on BCI P300 and if the size of the
-% screen matters 
 %}
 
 %% ---------------------------------------------------------------------------------------------------------------------------
@@ -32,39 +26,41 @@ clc
 clear
 close all
 
+fprintf('=== EEG Data Processing for Taste Experiment ===\n');
 
-% Opened .mat
+%% Load Data Files
+
+% Load opened nose data
 HIO_opened_path = fullfile(pwd, 'opened_nose', 'HIO.mat');
 HIO_opened = load(HIO_opened_path);
-data_HIO_opened = struct2array(HIO_opened);                                           % Size: [160 × 1280 × 17] = [trials × time × channels]
+data_HIO_opened = struct2array(HIO_opened);
 
 KK_opened_path = fullfile(pwd, 'opened_nose', 'KK.mat');
 KK_opened = load(KK_opened_path);
-data_KK_opened = struct2array(KK_opened);                                           
+data_KK_opened = struct2array(KK_opened);
 
 KUA_opened_path = fullfile(pwd, 'opened_nose', 'KUA.mat');
 KUA_opened = load(KUA_opened_path);
-data_KUA_opened = struct2array(KUA_opened);                                          
+data_KUA_opened = struct2array(KUA_opened);
 
 SK_T_opened_path = fullfile(pwd, 'opened_nose', 'SK_T.mat');
 SK_T_opened = load(SK_T_opened_path);
-data_SK_T_opened = struct2array(SK_T_opened);                                           
+data_SK_T_opened = struct2array(SK_T_opened);
 
 SM_opened_path = fullfile(pwd, 'opened_nose', 'SM.mat');
 SM_opened = load(SM_opened_path);
-data_SM_opened = struct2array(SM_opened);                                           
+data_SM_opened = struct2array(SM_opened);
 
 opened_names = {'HIO', 'KK', 'KUA', 'SK_T', 'SM'};
 
-
-% Closed .mat
+% Load closed nose data
 AC_closed_path = fullfile(pwd, 'closed_nose', 'AC.mat');
 AC_closed = load(AC_closed_path);
-data_AC_closed = struct2array(AC_closed);                                           % Size: [160 × 1280 × 17] = [trials × time × channels]
+data_AC_closed = struct2array(AC_closed);
 
 BA_closed_path = fullfile(pwd, 'closed_nose', 'BA.mat');
 BA_closed = load(BA_closed_path);
-data_BA_closed = struct2array(BA_closed);                                           
+data_BA_closed = struct2array(BA_closed);
 
 BO_closed_path = fullfile(pwd, 'closed_nose', 'BO.mat');
 BO_closed = load(BO_closed_path);
@@ -80,216 +76,576 @@ data_JD_closed = struct2array(JD_closed);
 
 closed_names = {'AC', 'BA', 'BO', 'CMY', 'JD'};
 
-% Channel names
+% Load channel names
 channel_names = load("Channel_names.mat");
 channels = struct2array(channel_names);
 
-% Defininition of variables
+%% Define Variables
+fprintf('\nData specifications:\n');
 sampling_rate = 512;
 n_samples = 1280;
-n_trials = size(data_AC_closed, 1);                                           % 160 trials
-n_time = size(data_AC_closed, 2);                                             % 1280 time points per trial
-n_channels = size(data_AC_closed, 3);                                         % 17 channels
-trial_duration_sec = n_time / sampling_rate;                                  % 1280 / sampling rate
-total_duration_sec = n_trials * trial_duration_sec;
+n_trials = size(data_AC_closed, 1);                    % 160 trials
+n_time = size(data_AC_closed, 2);                      % 1280 time points per trial
+n_channels = size(data_AC_closed, 3);                  % 17 channels
+trial_duration_sec = n_time / sampling_rate;           % Trial duration in seconds
+total_duration_sec = n_trials * trial_duration_sec;    % Total recording duration
 
-% Data combined
-data_closed_combined = cat(4, data_AC_closed, data_BA_closed, data_BO_closed, data_CMY_closed, data_JD_closed); % [160 × 1280 × 17 × 5]
+fprintf('  - Sampling rate: %d Hz\n', sampling_rate);
+fprintf('  - Number of trials: %d\n', n_trials);
+fprintf('  - Samples per trial: %d\n', n_samples);
+fprintf('  - Number of channels: %d\n', n_channels);
+fprintf('  - Trial duration: %.2f seconds\n', trial_duration_sec);
+fprintf('  - Total duration: %.2f seconds\n\n', total_duration_sec);
+
+%% Combine and Reshape Data
+fprintf('Combining and reshaping data...\n');
+
+% Combine data from all subjects
+data_closed_combined = cat(4, data_AC_closed, data_BA_closed, data_BO_closed, data_CMY_closed, data_JD_closed);
 data_opened_combined = cat(4, data_HIO_opened, data_KK_opened, data_KUA_opened, data_SK_T_opened, data_SM_opened);
 
+% Reshape data for plotting (continuous format)
+EEG_data_closed_reshaped = cell(5,1);
+EEG_data_opened_reshaped = cell(5,1);
 
 for i = 1:5
-    data_closed_perm = permute(data_closed_combined(:,:,:,i), [3,2,1]);   % [channels × time × trials]
-    data_opened_perm = permute(data_opened_combined(:,:,:,i), [3,2,1]);
-
-    EEG_data_closed_shaped{i} = reshape(data_closed_perm, n_channels, []);  % cell array 
-    EEG_data_opened_shaped{i} = reshape(data_opened_perm, n_channels, []);
-
+    data_closed_permuted = permute(data_closed_combined(:,:,:,i), [3,2,1]);   % [channels × time × trials]
+    data_opened_permuted = permute(data_opened_combined(:,:,:,i), [3,2,1]);
+    
+    EEG_data_closed_reshaped{i} = reshape(data_closed_permuted, n_channels, []); % Continuous format
+    EEG_data_opened_reshaped{i} = reshape(data_opened_permuted, n_channels, []);
 end
 
+time_axis = linspace(0, total_duration_sec, size(EEG_data_closed_reshaped{1}, 2));
+channel_offset = 300; % Separation between channels in plots
 
-time = linspace(0, total_duration_sec, size(EEG_data_closed_shaped{1}, 2));
-offset = 300;                                                       % separation between channels
+fprintf('Data reshaping completed.\n\n');
 
-%% Plot for the whole time range - closed nose
+%----------------------------------------
+%% PART 1: RAW DATA ANALYSIS
+%----------------------------------------
 
-for i = 1:5 %loop for each closed nose subject 
+fprintf('=== PART 1: RAW DATA ANALYSIS ===\n\n');
+
+% Plot Raw EEG Data - All Subjects
+% All closed nose subjects first
+fprintf('\nProcessing CLOSED nose subjects:\n');
+for i = 1:5
+    
+    % Continuous EEG plot
     figure;
     hold on;
-    
     for ch = 1:n_channels
-        plot(time, EEG_data_closed_shaped{i}(ch, :) + (ch - 1) * offset);
+        plot(time_axis, EEG_data_closed_reshaped{i}(ch, :) + (ch - 1) * channel_offset);
     end
-    
-    title('Continuous EEG plot');
-    subtitle(['All 160 trials concatenated (' closed_names{i} ', closed nose)']);
+    title('Continuous Raw EEG Data - All 160 Trials');
+    subtitle(sprintf('Subject: %s (Closed Nose)', closed_names{i}));
     xlabel('Time (s)');
     ylabel('Channels');
-    yticks((0:n_channels-1) * offset);
+    yticks((0:n_channels-1) * channel_offset);
     yticklabels(channels(1:n_channels));
-    ylim([-offset, offset * n_channels]);
+    ylim([-channel_offset, channel_offset * n_channels]);
     xlim([0, total_duration_sec]);
     grid on;
     hold off;
-
-%% Plot PSD for the whole set
-
+    
+    % Power Spectral Density analysis
     figure;
     
-    %SNR
-    snr_raw_data = zeros(1, n_channels);
+    snr_values = zeros(1, n_channels);
     signal_band = [0.5 30];
     noise_band = [45 100];
+    all_psd_data = [];
     
-    all_psds = [];
-    fprintf(['\n SNR for Raw Data: ' closed_names{i} '\n']);
     for ch = 1:n_channels
-        [psd_single, f] = pwelch(EEG_data_closed_shaped{i}(ch, :), [], [], [], sampling_rate);
-        all_psds = [all_psds, psd_single];
-    
-        signal_indices = f >= signal_band(1) & f <= signal_band(2);
-        P_signal = sum(psd_single(signal_indices));
+        [psd_values, freq_axis] = pwelch(EEG_data_closed_reshaped{i}(ch, :), [], [], [], sampling_rate);
+        all_psd_data = [all_psd_data, psd_values];
         
-        noise_indices = f >= noise_band(1) & f <= noise_band(2);
-        P_noise = sum(psd_single(noise_indices));
-        
-        snr_raw_data(ch) = 10*log10(P_signal/P_noise);
-        fprintf('SNR = %.2f dB for %s\n', snr_raw_data(ch), channels{ch});
+        signal_power = sum(psd_values(freq_axis >= signal_band(1) & freq_axis <= signal_band(2)));
+        noise_power = sum(psd_values(freq_axis >= noise_band(1) & freq_axis <= noise_band(2)));
+        snr_values(ch) = 10*log10(signal_power/noise_power);
     end
     
-    avg_psd = mean(all_psds, 2);
+    % Plot average PSD
+    avg_psd = mean(all_psd_data, 2);
     avg_psd_db = 10*log10(avg_psd);
     
-    plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1,'Color',"#7E2F8E");
-    title('Average PSD Across All Channels and Trials', 'FontSize', 10);
-    subtitle(['(' closed_names{i} ', closed nose)']);
+    plot(freq_axis, avg_psd_db, 'b-', 'LineWidth', 1.2, 'Color', "#7E2F8E");
+    title('Average Power Spectral Density');
+    subtitle(sprintf('Subject: %s (Closed Nose) - Raw Data', closed_names{i}));
     xlabel('Frequency (Hz)');
     ylabel('PSD (dB)');
     xlim([0 256]);
     ylim([-80 40]);
     grid on;
+    
+    % Display SNR values
+    fprintf('    SNR values for %s (closed nose):\n', closed_names{i});
+    for ch = 1:n_channels
+        fprintf('      %s: %.2f dB\n', channels{ch}, snr_values(ch));
+    end
+end
 
+% Process all opened nose subjects
+fprintf('\nProcessing OPENED nose subjects:\n');
+for i = 1:5
+    fprintf('  Processing subject %s (opened nose)...\n', opened_names{i});
+    
+    % Continuous EEG plot
+    figure;
+    hold on;
+    for ch = 1:n_channels
+        plot(time_axis, EEG_data_opened_reshaped{i}(ch, :) + (ch - 1) * channel_offset);
+    end
+    title('Continuous Raw EEG Data - All 160 Trials');
+    subtitle(sprintf('Subject: %s (Opened Nose)', opened_names{i}));
+    xlabel('Time (s)');
+    ylabel('Channels');
+    yticks((0:n_channels-1) * channel_offset);
+    yticklabels(channels(1:n_channels));
+    ylim([-channel_offset, channel_offset * n_channels]);
+    xlim([0, total_duration_sec]);
+    grid on;
+    hold off;
+    
+    % Power Spectral Density analysis
+    figure;
+    fprintf('    Computing PSD and SNR for %s...\n', opened_names{i});
+    
+    snr_values = zeros(1, n_channels);
+    signal_band = [0.5 30];
+    noise_band = [45 100];
+    all_psd_data = [];
+    
+    for ch = 1:n_channels
+        [psd_values, freq_axis] = pwelch(EEG_data_opened_reshaped{i}(ch, :), [], [], [], sampling_rate);
+        all_psd_data = [all_psd_data, psd_values];
+        
+        signal_power = sum(psd_values(freq_axis >= signal_band(1) & freq_axis <= signal_band(2)));
+        noise_power = sum(psd_values(freq_axis >= noise_band(1) & freq_axis <= noise_band(2)));
+        snr_values(ch) = 10*log10(signal_power/noise_power);
+    end
+    
+    % Plot average PSD
+    avg_psd = mean(all_psd_data, 2);
+    avg_psd_db = 10*log10(avg_psd);
+    
+    plot(freq_axis, avg_psd_db, 'b-', 'LineWidth', 1.2, 'Color', "#7E2F8E");
+    title('Average Power Spectral Density');
+    subtitle(sprintf('Subject: %s (Opened Nose) - Raw Data', opened_names{i}));
+    xlabel('Frequency (Hz)');
+    ylabel('PSD (dB)');
+    xlim([0 256]);
+    ylim([-80 40]);
+    grid on;
+    
+    % Display SNR values
+    fprintf('    SNR values for %s (opened nose):\n', opened_names{i});
+    for ch = 1:n_channels
+        fprintf('      %s: %.2f dB\n', channels{ch}, snr_values(ch));
+    end
+end
 
+%% Plot Individual Epochs - Sample Trials
+fprintf('\nGenerating epoch plots for sample trials...\n');
+epoch_samples = [40, 50, 60, 70];
+epoch_time = (0:n_samples-1) / sampling_rate;
 
-%% Plot for defined Epochs 
-    epoch_num = [40, 50, 60, 70];
-    time_2 = (0:n_samples-1) / sampling_rate;
+% Plot epochs for closed nose subjects
+for i = 1:5
     
     figure;
-    
-    for num_epochs = 1:length(epoch_num)
-        subplot(2, 2, num_epochs);
+    for trial_idx = 1:length(epoch_samples)
+        subplot(2, 2, trial_idx);
         hold on;
-    
+        
         for ch = 1:n_channels
-            plot(time_2, data_closed_combined(epoch_num(num_epochs), :, ch,i) + (ch - 1) * offset);
+            plot(epoch_time, data_closed_combined(epoch_samples(trial_idx), :, ch, i) + (ch - 1) * channel_offset);
         end
-    
-        title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
-        subtitle(['Before filtering (' closed_names{i} ', closed nose)']);
-
+        
+        title(sprintf('Trial %d - Raw EEG', epoch_samples(trial_idx)));
+        subtitle(sprintf('Subject: %s (Closed Nose)', closed_names{i}));
         xlabel('Time (s)');
         ylabel('Channels');
-        yticks((0:n_channels - 1) * offset);
+        yticks((0:n_channels - 1) * channel_offset);
         yticklabels(channels(1:n_channels));
-        ylim([-offset, offset * n_channels]);
+        ylim([-channel_offset, channel_offset * n_channels]);
         xlim([0, 2.5]);
         grid on;
         hold off;
     end
 end
 
-% ------------------------------------------
-%% Plot for the whole time range for opened
-
-for i = 1:5 %loop for each opened nose subject 
-    figure;
-    hold on;
-    
-    for ch = 1:n_channels
-        plot(time, EEG_data_opened_shaped{i}(ch, :) + (ch - 1) * offset);
-    end
-    
-    title('Continuous EEG plot');
-    subtitle(['All 160 trials concatenated (' opened_names{i} ', opened nose)']);
-    xlabel('Time (s)');
-    ylabel('Channels');
-    yticks((0:n_channels-1) * offset);
-    yticklabels(channels(1:n_channels));
-    ylim([-offset, offset * n_channels]);
-    xlim([0, total_duration_sec]);
-    grid on;
-    hold off;
-
-%% Plot PSD for the whole set
-
-    figure;
-    
-    %SNR
-    snr_raw_data = zeros(1, n_channels);
-    signal_band = [0.5 30];
-    noise_band = [45 100];
-    
-    all_psds = [];
-    fprintf(['\n SNR for Raw Data: ' opened_names{i} '\n']);
-    for ch = 1:n_channels
-        [psd_single, f] = pwelch(EEG_data_opened_shaped{i}(ch, :), [], [], [], sampling_rate);
-        all_psds = [all_psds, psd_single];
-    
-        signal_indices = f >= signal_band(1) & f <= signal_band(2);
-        P_signal = sum(psd_single(signal_indices));
-        
-        noise_indices = f >= noise_band(1) & f <= noise_band(2);
-        P_noise = sum(psd_single(noise_indices));
-        
-        snr_raw_data(ch) = 10*log10(P_signal/P_noise);
-        fprintf('SNR = %.2f dB for %s\n', snr_raw_data(ch), channels{ch});
-    end
-    
-    avg_psd = mean(all_psds, 2);
-    avg_psd_db = 10*log10(avg_psd);
-    
-    plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1,'Color',"#7E2F8E");
-    title('Average PSD Across All Channels and Trials', 'FontSize', 10);
-    subtitle(['(' opened_names{i} ', opened nose)']);
-    xlabel('Frequency (Hz)');
-    ylabel('PSD (dB)');
-    xlim([0 256]);
-    ylim([-80 40]);
-    grid on;
-
-
-
-%% Plot for defined Epochs 
-    epoch_num = [40, 50, 60, 70];
-    time_2 = (0:n_samples-1) / sampling_rate;
+% Plot epochs for opened nose subjects
+for i = 1:5
     
     figure;
-    
-    for num_epochs = 1:length(epoch_num)
-        subplot(2, 2, num_epochs);
+    for trial_idx = 1:length(epoch_samples)
+        subplot(2, 2, trial_idx);
         hold on;
-    
+        
         for ch = 1:n_channels
-            plot(time_2, data_opened_combined(epoch_num(num_epochs), :, ch,i) + (ch - 1) * offset);
+            plot(epoch_time, data_opened_combined(epoch_samples(trial_idx), :, ch, i) + (ch - 1) * channel_offset);
         end
-    
-        title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
-        subtitle(['Before filtering (' opened_names{i} ', opened nose)']);
-
+        
+        title(sprintf('Trial %d - Raw EEG', epoch_samples(trial_idx)));
+        subtitle(sprintf('Subject: %s (Opened Nose)', opened_names{i}));
         xlabel('Time (s)');
         ylabel('Channels');
-        yticks((0:n_channels - 1) * offset);
+        yticks((0:n_channels - 1) * channel_offset);
         yticklabels(channels(1:n_channels));
-        ylim([-offset, offset * n_channels]);
+        ylim([-channel_offset, channel_offset * n_channels]);
         xlim([0, 2.5]);
         grid on;
         hold off;
     end
 end
-% ------------------------------------------
 
-%% Filtering Data - Analysis
+%----------------------------------------
+%% PART 2: FILTERING
+%----------------------------------------
+
+fprintf('\n=== PART 2: FILTERING ===\n\n');
+fprintf('Applying bandpass filter (0.5-30 Hz) to all subjects...\n');
+
+% Filter parameters
+low_cutoff = 0.5;
+high_cutoff = 30;
+filter_order = 2;
+
+% Initialize filtered data storage
+EEG_filtered_closed = zeros(n_channels, n_samples, n_trials, 5);
+EEG_filtered_opened = zeros(n_channels, n_samples, n_trials, 5);
+
+% Filter closed nose data
+fprintf('\nFiltering CLOSED nose data:\n');
+for i = 1:5
+    fprintf('  Filtering subject %s (closed nose)...\n', closed_names{i});
+    
+    nyquist_freq = sampling_rate / 2;
+    [b_highpass, a_highpass] = butter(filter_order, low_cutoff / nyquist_freq, 'high');
+    [b_lowpass, a_lowpass] = butter(filter_order, high_cutoff / nyquist_freq, 'low');
+    
+    filtered_signal = zeros(size(EEG_data_closed_reshaped{i}));
+    
+    for ch = 1:n_channels
+        highpass_signal = filtfilt(b_highpass, a_highpass, EEG_data_closed_reshaped{i}(ch, :));
+        filtered_signal(ch, :) = filtfilt(b_lowpass, a_lowpass, highpass_signal);
+    end
+    
+    EEG_filtered_closed(:,:,:,i) = reshape(filtered_signal, n_channels, n_samples, n_trials);
+end
+
+% Filter opened nose data
+fprintf('\nFiltering OPENED nose data:\n');
+for i = 1:5
+    fprintf('  Filtering subject %s (opened nose)...\n', opened_names{i});
+    
+    nyquist_freq = sampling_rate / 2;
+    [b_highpass, a_highpass] = butter(filter_order, low_cutoff / nyquist_freq, 'high');
+    [b_lowpass, a_lowpass] = butter(filter_order, high_cutoff / nyquist_freq, 'low');
+    
+    filtered_signal = zeros(size(EEG_data_opened_reshaped{i}));
+    
+    for ch = 1:n_channels
+        highpass_signal = filtfilt(b_highpass, a_highpass, EEG_data_opened_reshaped{i}(ch, :));
+        filtered_signal(ch, :) = filtfilt(b_lowpass, a_lowpass, highpass_signal);
+    end
+    
+    EEG_filtered_opened(:,:,:,i) = reshape(filtered_signal, n_channels, n_samples, n_trials);
+end
+
+%% Plot Filtered Data
+
+% Plot filtered continuous data for closed nose
+for i = 1:5
+    
+    filtered_continuous = reshape(EEG_filtered_closed(:,:,:,i), n_channels, []);
+    
+    % Continuous plot
+    figure;
+    hold on;
+    for ch = 1:n_channels
+        plot(time_axis, filtered_continuous(ch, :) + (ch - 1) * channel_offset);
+    end
+    title('Continuous Filtered EEG Data (0.5-30 Hz)');
+    subtitle(sprintf('Subject: %s (Closed Nose)', closed_names{i}));
+    xlabel('Time (s)');
+    ylabel('Channels');
+    yticks((0:n_channels-1) * channel_offset);
+    yticklabels(channels(1:n_channels));
+    ylim([-channel_offset, channel_offset * n_channels]);
+    xlim([0, total_duration_sec]);
+    grid on;
+    hold off;
+    
+    % PSD analysis for filtered data
+    figure;
+    
+    snr_filtered = zeros(1, n_channels);
+    all_psd_filtered = [];
+    
+    for ch = 1:n_channels
+        [psd_values, freq_axis] = pwelch(filtered_continuous(ch, :), [], [], [], sampling_rate);
+        all_psd_filtered = [all_psd_filtered, psd_values];
+        
+        signal_power = sum(psd_values(freq_axis >= 0.5 & freq_axis <= 30));
+        noise_power = sum(psd_values(freq_axis >= 45 & freq_axis <= 100));
+        snr_filtered(ch) = 10*log10(signal_power/noise_power);
+    end
+    
+    avg_psd_filtered = mean(all_psd_filtered, 2);
+    avg_psd_filtered_db = 10*log10(avg_psd_filtered);
+    
+    plot(freq_axis, avg_psd_filtered_db, 'b-', 'LineWidth', 1.2, 'Color', "#7E2F8E");
+    title('Average Power Spectral Density - Filtered Data');
+    subtitle(sprintf('Subject: %s (Closed Nose)', closed_names{i}));
+    xlabel('Frequency (Hz)');
+    ylabel('PSD (dB)');
+    xlim([0 256]);
+    ylim([-80 40]);
+    grid on;
+    
+    % Display filtered SNR values
+    fprintf('    Filtered SNR values for %s (closed nose):\n', closed_names{i});
+    for ch = 1:n_channels
+        fprintf('      %s: %.2f dB\n', channels{ch}, snr_filtered(ch));
+    end
+end
+
+% Plot filtered continuous data for opened nose
+for i = 1:5
+    
+    filtered_continuous = reshape(EEG_filtered_opened(:,:,:,i), n_channels, []);
+    
+    % Continuous plot
+    figure;
+    hold on;
+    for ch = 1:n_channels
+        plot(time_axis, filtered_continuous(ch, :) + (ch - 1) * channel_offset);
+    end
+    title('Continuous Filtered EEG Data (0.5-30 Hz)');
+    subtitle(sprintf('Subject: %s (Opened Nose)', opened_names{i}));
+    xlabel('Time (s)');
+    ylabel('Channels');
+    yticks((0:n_channels-1) * channel_offset);
+    yticklabels(channels(1:n_channels));
+    ylim([-channel_offset, channel_offset * n_channels]);
+    xlim([0, total_duration_sec]);
+    grid on;
+    hold off;
+    
+    % PSD analysis for filtered data
+    figure;
+    
+    snr_filtered = zeros(1, n_channels);
+    all_psd_filtered = [];
+    
+    for ch = 1:n_channels
+        [psd_values, freq_axis] = pwelch(filtered_continuous(ch, :), [], [], [], sampling_rate);
+        all_psd_filtered = [all_psd_filtered, psd_values];
+        
+        signal_power = sum(psd_values(freq_axis >= 0.5 & freq_axis <= 30));
+        noise_power = sum(psd_values(freq_axis >= 45 & freq_axis <= 100));
+        snr_filtered(ch) = 10*log10(signal_power/noise_power);
+    end
+    
+    avg_psd_filtered = mean(all_psd_filtered, 2);
+    avg_psd_filtered_db = 10*log10(avg_psd_filtered);
+    
+    plot(freq_axis, avg_psd_filtered_db, 'b-', 'LineWidth', 1.2, 'Color', "#7E2F8E");
+    title('Average Power Spectral Density - Filtered Data');
+    subtitle(sprintf('Subject: %s (Opened Nose)', opened_names{i}));
+    xlabel('Frequency (Hz)');
+    ylabel('PSD (dB)');
+    xlim([0 256]);
+    ylim([-80 40]);
+    grid on;
+    
+    % Display filtered SNR values
+    fprintf('    Filtered SNR values for %s (opened nose):\n', opened_names{i});
+    for ch = 1:n_channels
+        fprintf('      %s: %.2f dB\n', channels{ch}, snr_filtered(ch));
+    end
+end
+
+%% Plot Filtered Epochs
+
+% Plot filtered epochs for closed nose
+for i = 1:5    
+    figure;
+    for trial_idx = 1:length(epoch_samples)
+        subplot(2, 2, trial_idx);
+        hold on;
+        
+        for ch = 1:n_channels
+            plot(epoch_time, EEG_filtered_closed(ch, :, epoch_samples(trial_idx), i) + (ch - 1) * channel_offset);
+        end
+        
+        title(sprintf('Trial %d - Filtered EEG', epoch_samples(trial_idx)));
+        subtitle(sprintf('Subject: %s (Closed Nose)', closed_names{i}));
+        xlabel('Time (s)');
+        ylabel('Channels');
+        yticks((0:n_channels - 1) * channel_offset);
+        yticklabels(channels(1:n_channels));
+        ylim([-channel_offset, channel_offset * n_channels]);
+        xlim([0, 2.5]);
+        grid on;
+        hold off;
+    end
+end
+
+% Plot filtered epochs for opened nose
+for i = 1:5    
+    figure;
+    for trial_idx = 1:length(epoch_samples)
+        subplot(2, 2, trial_idx);
+        hold on;
+        
+        for ch = 1:n_channels
+            plot(epoch_time, EEG_filtered_opened(ch, :, epoch_samples(trial_idx), i) + (ch - 1) * channel_offset);
+        end
+        
+        title(sprintf('Trial %d - Filtered EEG', epoch_samples(trial_idx)));
+        subtitle(sprintf('Subject: %s (Opened Nose)', opened_names{i}));
+        xlabel('Time (s)');
+        ylabel('Channels');
+        yticks((0:n_channels - 1) * channel_offset);
+        yticklabels(channels(1:n_channels));
+        ylim([-channel_offset, channel_offset * n_channels]);
+        xlim([0, 2.5]);
+        grid on;
+        hold off;
+    end
+end
+
+%----------------------------------------
+%% PART 3: ARTIFACT REMOVAL (ICA)
+%----------------------------------------
+
+fprintf('\n=== PART 3: ARTIFACT REMOVAL (ICA) ===\n\n');
+fprintf('Performing Independent Component Analysis for artifact removal...\n');
+
+n_components = 4;
+max_iterations = 1000;
+tolerance = 1e-6;
+learning_rate = 1.0;
+
+%% ICA for CLOSED nose subjects
+fprintf('\nPerforming ICA on CLOSED nose subjects:\n');
+for i = 1:5    
+    filtered_data_2d = reshape(EEG_filtered_closed(:,:,:,i), n_channels, []);
+    
+    %       Run ICA
+    [ica_components, W_matrix, A_matrix] = ICA(filtered_data_2d, n_components, max_iterations, tolerance, learning_rate);
+    ica_reshaped = reshape(ica_components, n_components, n_samples, n_trials);
+    
+    %       Plot ICA components PSD
+    trial_for_ica = 1;
+    figure;
+    fprintf('    Analyzing ICA components for %s...\n', closed_names{i});
+    for comp = 1:n_components
+        subplot(2,2,comp);
+        [psd_comp, freq_comp] = pwelch(ica_reshaped(comp, :, trial_for_ica), [], [], [], sampling_rate);
+        plot(freq_comp, 10*log10(psd_comp), 'LineWidth', 1.5);
+        title(sprintf('ICA Component %d - PSD', comp));
+        subtitle(sprintf('Subject: %s (Closed Nose)', closed_names{i}));
+        xlabel('Frequency (Hz)'); ylabel('Power (dB)');
+        xlim([0, 100]); grid on;
+    end
+    
+    %       Plot ICA components time series
+    figure;
+    ica_offset = 50; hold on;
+    for comp = 1:n_components
+        plot(epoch_time, ica_reshaped(comp, :, trial_for_ica) + (comp-1)*ica_offset);
+    end
+    title(sprintf('ICA Components - Trial %d', trial_for_ica));
+    subtitle(sprintf('Subject: %s (Closed Nose)', closed_names{i}));
+    xlabel('Time (s)'); ylabel('Components');
+    yticks((0:n_components-1)*ica_offset);
+    ylim([-ica_offset, n_components*ica_offset]);
+    grid on; hold off;
+    
+    %       Artifact removal
+    artifact_components = []; % <- FILL UP
+    if ~isempty(artifact_components)
+        A_clean = A_matrix; 
+        A_clean(:, artifact_components) = 0;
+        clean_components = ica_components; 
+        clean_components(artifact_components,:) = 0;
+        clean_signal = A_clean * clean_components;
+        clean_eeg_closed(:,:,:,i) = reshape(clean_signal, n_channels, n_samples, n_trials);
+        fprintf('    Artifact components removed for %s\n', closed_names{i});
+    else
+        clean_eeg_closed(:,:,:,i) = EEG_filtered_closed(:,:,:,i);
+        fprintf('    No artifact components removed for %s\n', closed_names{i});
+    end
+end
+
+
+%% ICA for OPENED nose subjects
+fprintf('\nPerforming ICA on OPENED nose subjects:\n');
+for i = 1:5    
+    filtered_data_2d = reshape(EEG_filtered_opened(:,:,:,i), n_channels, []);
+    
+    %      Run ICA
+    [ica_components, W_matrix, A_matrix] = ICA(filtered_data_2d, n_components, max_iterations, tolerance, learning_rate);
+    ica_reshaped = reshape(ica_components, n_components, n_samples, n_trials);
+    
+    %       Plot ICA components PSD
+    trial_for_ica = 1;
+    figure;
+    fprintf('    Analyzing ICA components for %s...\n', opened_names{i});
+    for comp = 1:n_components
+        subplot(2,2,comp);
+        [psd_comp, freq_comp] = pwelch(ica_reshaped(comp, :, trial_for_ica), [], [], [], sampling_rate);
+        plot(freq_comp, 10*log10(psd_comp), 'LineWidth', 1.5);
+        title(sprintf('ICA Component %d - PSD', comp));
+        subtitle(sprintf('Subject: %s (Opened Nose)', opened_names{i}));
+        xlabel('Frequency (Hz)'); ylabel('Power (dB)');
+        xlim([0, 100]); grid on;
+    end
+    
+    %       Plot ICA components time series
+    figure;
+    ica_offset = 50; hold on;
+    for comp = 1:n_components
+        plot(epoch_time, ica_reshaped(comp, :, trial_for_ica) + (comp-1)*ica_offset);
+    end
+    title(sprintf('ICA Components - Trial %d', trial_for_ica));
+    subtitle(sprintf('Subject: %s (Opened Nose)', opened_names{i}));
+    xlabel('Time (s)'); ylabel('Components');
+    yticks((0:n_components-1)*ica_offset);
+    ylim([-ica_offset, n_components*ica_offset]);
+    grid on; hold off;
+    
+    %       Artifact removal
+    artifact_components = []; % <- FILL UP LATER
+    if ~isempty(artifact_components)
+        A_clean = A_matrix; 
+        A_clean(:, artifact_components) = 0;
+        clean_components = ica_components; 
+        clean_components(artifact_components,:) = 0;
+        clean_signal = A_clean * clean_components;
+        clean_eeg_opened(:,:,:,i) = reshape(clean_signal, n_channels, n_samples, n_trials);
+        fprintf('    Artifact components removed for %s\n', opened_names{i});
+    else
+        clean_eeg_opened(:,:,:,i) = EEG_filtered_opened(:,:,:,i);
+        fprintf('    No artifact components removed for %s\n', opened_names{i});
+    end
+end
+
+
+
+
+
+
+
+
+
+%----------------------------------------------------------------------------
+% Filtering Data - Analysis
 % low_numbers = [0.5, 0.4, 0.3];   % High-pass cutoff frequencies
 % high_numbers = [30, 35, 40];     % Low-pass cutoff frequencies
 % filter_order = 2;
@@ -352,327 +708,3 @@ end
 %         end
 %     end
 % end
-
-
-%% Result HPF, LPF - closed
-low_cut = 0.5;
-high_cut = 30;
-order = 2;
-
-EEG_filtered_result = zeros(n_channels, n_samples, n_trials, 5); 
-
-for i = 1:5
-    nyquist = sampling_rate / 2;
-    [b_hp, a_hp] = butter(order, low_cut / nyquist, 'high');
-    [b_lp, a_lp] = butter(order, high_cut / nyquist, 'low');
-    
-    EEG_filter = zeros(size(EEG_data_closed_shaped{i}));
-    
-    for ch = 1:n_channels
-        hp_signal = filtfilt(b_hp, a_hp, EEG_data_closed_shaped{i}(ch, :));
-        EEG_filter(ch, :) = filtfilt(b_lp, a_lp, hp_signal);
-    end
-    
-    EEG_filtered_result(:,:,:,i) = reshape(EEG_filter, n_channels, n_samples, n_trials);
-end
-
-%% All time after filtering 
-for i=1:5
-    EEG_filtered_long = reshape(EEG_filtered_result(:,:,:,i), n_channels, []);
-    
-    figure;
-    hold on;
-    for ch = 1:n_channels
-        plot(time, EEG_filtered_long(ch, :) + (ch - 1) * offset);
-    end
-    
-    title('Continuous EEG plot');
-    subtitle(['After HPF and LPF (' closed_names{i} ', closed nose)']);
-    xlabel('Time (s)');
-    ylabel('Channels');
-    yticks((0:n_channels-1) * offset);
-    yticklabels(channels(1:n_channels));
-    ylim([-offset, offset * n_channels]);
-    xlim([0, total_duration_sec]);
-    grid on;
-    hold off;
-
-    
-    % --------
-    figure;
-    fprintf('\n')
-    fprintf(['Subject: ' closed_names{i} '\n']);
-    fprintf('SNR for Filtered Data: \n')
-    %SNR
-    snr_raw_data_f = zeros(1, n_channels);
-    signal_band = [0.5 30];
-    noise_band = [45 100];
-    
-    all_psds = [];
-    for ch = 1:n_channels
-        [psd_single, f] = pwelch(EEG_filtered_long(ch, :), [], [], [], sampling_rate);
-        all_psds = [all_psds, psd_single];
-    
-        signal_indices_f = f >= signal_band(1) & f <= signal_band(2);
-        P_signal_f = sum(psd_single(signal_indices_f));
-        
-        noise_indices_f = f >= noise_band(1) & f <= noise_band(2);
-        P_noise_f = sum(psd_single(noise_indices_f));
-        
-        snr_raw_data_f(ch) = 10*log10(P_signal_f/P_noise_f);
-        fprintf('SNR = %.2f dB for %s\n', snr_raw_data_f(ch), channels{ch});
-    
-    end
-    
-    avg_psd = mean(all_psds, 2);
-    avg_psd_db = 10*log10(avg_psd);
-    
-    plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1, 'Color',"#7E2F8E");
-    title('Average PSD Across All Channels and Trials', 'FontSize', 10);
-    subtitle("After HPF and LPF Filtering (AC, closed nose)")
-    xlabel('Frequency (Hz)');
-    ylabel('PSD (dB)');
-    xlim([0 256]);
-    ylim([-80 40]);
-    grid on;
-
-end
-
-%% Plot for defined Epochs - after filtering
-for i=1:5
-    epoch_num = [40, 50, 60, 70];
-    time_2 = (0:n_samples-1) / sampling_rate;
-    
-    figure;
-    
-    for num_epochs = 1:length(epoch_num)
-        subplot(2, 2, num_epochs);
-        hold on;
-    
-        for ch = 1:n_channels
-            plot(time_2, EEG_filtered_result(ch, :,epoch_num(num_epochs),i) + (ch - 1) * offset);
-        end
-    
-        title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
-        subtitle('After HPF, LPF (AC - closed nose)')
-        xlabel('Time (s)');
-        ylabel('Channels');
-        yticks((0:n_channels - 1) * offset);
-        yticklabels(channels(1:n_channels));
-        ylim([-offset, offset * n_channels]);
-        xlim([0, 2.5]);
-        grid on;
-        hold off;
-    end
-end
-
-%% Artifact Removal
-for i = 1:5 
-    x = EEG_filtered_result(:,:,:,i);
-    x_reshaped = reshape(x, n_channels, []);
-    
-    % ICA
-    n_independent_components = 4;
-    [ica_components, W_ica, A_ica] = ICA(x_reshaped, n_independent_components, 1000, 1e-6, 1.0);
-    
-    ica_reshaped = reshape(ica_components, n_independent_components, n_samples, n_trials);
-    
-    %% Power Spectral Density for ICA
-    trial_to_plot = 1;
-    figure();
-    for c = 1:n_independent_components
-        subplot(2,2,c);
-        [psd_comp, f_comp] = pwelch(ica_reshaped(c, :, trial_to_plot), [], [], [], sampling_rate);
-        psd_db = 10*log10(psd_comp);
-        
-        plot(f_comp, psd_db, 'LineWidth', 1.5);
-        title(['ICA Component ', num2str(c), ' - PSD']);
-        xlabel('Frequency (Hz)');
-        ylabel('Power (dB)');
-        xlim([0, 100]);
-        grid on;
-    end
-    
-    figure;
-    offset_ica = 50;
-    hold on;
-    for c = 1:n_independent_components
-        plot(time_2, ica_reshaped(c, :, trial_to_plot) + (c-1)*offset_ica);
-    end
-    title(['ICA Components - Trial ', num2str(trial_to_plot)]);
-    xlabel('Time (s)');
-    ylabel('Components');
-    yticks((0:n_independent_components-1)*offset_ica);
-    ylim([-offset_ica, n_independent_components*offset_ica]);
-    grid on;
-    hold off;
-end
-
-%% Delete the artifacts
-artifact_components = [];
-
-A_clean = A_ica;
-A_clean(:, artifact_components) = 0;
-
-clean_components = ica_components;
-clean_components(artifact_components, :) = 0;
-
-clean_signal = A_clean * clean_components;
-clean_eeg = reshape(clean_signal, n_channels, n_samples, n_trials);
-
-
-%------------------------------
-%% Result HPF, LPF - opened
-low_cut = 0.5;
-high_cut = 30;
-order = 2;
-
-EEG_filtered_result = zeros(n_channels, n_samples, n_trials, 5); 
-
-for i = 1:5
-    nyquist = sampling_rate / 2;
-    [b_hp, a_hp] = butter(order, low_cut / nyquist, 'high');
-    [b_lp, a_lp] = butter(order, high_cut / nyquist, 'low');
-    
-    EEG_filter = zeros(size(EEG_data_opened_shaped{i}));
-    
-    for ch = 1:n_channels
-        hp_signal = filtfilt(b_hp, a_hp, EEG_data_opened_shaped{i}(ch, :));
-        EEG_filter(ch, :) = filtfilt(b_lp, a_lp, hp_signal);
-    end
-    
-    EEG_filtered_result(:,:,:,i) = reshape(EEG_filter, n_channels, n_samples, n_trials);
-end
-
-%% All time after filtering 
-for i=1:5
-    EEG_filtered_long = reshape(EEG_filtered_result(:,:,:,i), n_channels, []);
-    
-    figure;
-    hold on;
-    for ch = 1:n_channels
-        plot(time, EEG_filtered_long(ch, :) + (ch - 1) * offset);
-    end
-    
-    title('Continuous EEG plot');
-    subtitle(['After HPF and LPF (' opened_names{i} ', opened nose)']);
-    xlabel('Time (s)');
-    ylabel('Channels');
-    yticks((0:n_channels-1) * offset);
-    yticklabels(channels(1:n_channels));
-    ylim([-offset, offset * n_channels]);
-    xlim([0, total_duration_sec]);
-    grid on;
-    hold off;
-
-    
-    % --------
-    figure;
-    fprintf('\n')
-    fprintf(['Subject: ' opened_names{i} '\n']);
-    fprintf('SNR for Filtered Data: \n')
-    %SNR
-    snr_raw_data_f = zeros(1, n_channels);
-    signal_band = [0.5 30];
-    noise_band = [45 100];
-    
-    all_psds = [];
-    for ch = 1:n_channels
-        [psd_single, f] = pwelch(EEG_filtered_long(ch, :), [], [], [], sampling_rate);
-        all_psds = [all_psds, psd_single];
-    
-        signal_indices_f = f >= signal_band(1) & f <= signal_band(2);
-        P_signal_f = sum(psd_single(signal_indices_f));
-        
-        noise_indices_f = f >= noise_band(1) & f <= noise_band(2);
-        P_noise_f = sum(psd_single(noise_indices_f));
-        
-        snr_raw_data_f(ch) = 10*log10(P_signal_f/P_noise_f);
-        fprintf('SNR = %.2f dB for %s\n', snr_raw_data_f(ch), channels{ch});
-    
-    end
-    
-    avg_psd = mean(all_psds, 2);
-    avg_psd_db = 10*log10(avg_psd);
-    
-    plot(f, avg_psd_db, 'b-', 'LineWidth', 0.1, 'Color',"#7E2F8E");
-    title('Average PSD Across All Channels and Trials', 'FontSize', 10);
-    subtitle("After HPF and LPF Filtering (, opened nose)")
-    xlabel('Frequency (Hz)');
-    ylabel('PSD (dB)');
-    xlim([0 256]);
-    ylim([-80 40]);
-    grid on;
-
-end
-
-%% Plot for defined Epochs - after filtering
-for i=1:5
-    epoch_num = [40, 50, 60, 70];
-    time_2 = (0:n_samples-1) / sampling_rate;
-    
-    figure;
-    
-    for num_epochs = 1:length(epoch_num)
-        subplot(2, 2, num_epochs);
-        hold on;
-    
-        for ch = 1:n_channels
-            plot(time_2, EEG_filtered_result(ch, :,epoch_num(num_epochs),i) + (ch - 1) * offset);
-        end
-    
-        title(['Raw EEG — Trial ', num2str(epoch_num(num_epochs))]);
-        subtitle('After HPF, LPF ( - opened nose)')
-        xlabel('Time (s)');
-        ylabel('Channels');
-        yticks((0:n_channels - 1) * offset);
-        yticklabels(channels(1:n_channels));
-        ylim([-offset, offset * n_channels]);
-        xlim([0, 2.5]);
-        grid on;
-        hold off;
-    end
-end
-
-%% Artifact Removal
-for i = 1:5 
-    x = EEG_filtered_result(:,:,:,i);
-    x_reshaped = reshape(x, n_channels, []);
-    
-    % ICA
-    n_independent_components = 4;
-    [ica_components, W_ica, A_ica] = ICA(x_reshaped, n_independent_components, 1000, 1e-6, 1.0);
-    
-    ica_reshaped = reshape(ica_components, n_independent_components, n_samples, n_trials);
-    
-    %% Power Spectral Density for ICA
-    trial_to_plot = 1;
-    figure();
-    for c = 1:n_independent_components
-        subplot(2,2,c);
-        [psd_comp, f_comp] = pwelch(ica_reshaped(c, :, trial_to_plot), [], [], [], sampling_rate);
-        psd_db = 10*log10(psd_comp);
-        
-        plot(f_comp, psd_db, 'LineWidth', 1.5);
-        title(['ICA Component ', num2str(c), ' - PSD']);
-        xlabel('Frequency (Hz)');
-        ylabel('Power (dB)');
-        xlim([0, 100]);
-        grid on;
-    end
-    
-    figure;
-    offset_ica = 50;
-    hold on;
-    for c = 1:n_independent_components
-        plot(time_2, ica_reshaped(c, :, trial_to_plot) + (c-1)*offset_ica);
-    end
-    title(['ICA Components - Trial ', num2str(trial_to_plot)]);
-    xlabel('Time (s)');
-    ylabel('Components');
-    yticks((0:n_independent_components-1)*offset_ica);
-    ylim([-offset_ica, n_independent_components*offset_ica]);
-    grid on;
-    hold off;
-end
-
