@@ -26,7 +26,7 @@ clc
 clear
 close all
 
-fprintf('=== EEG Data Processing for Taste Experiment ===\n');
+fprintf(' EEG Data Processing for Taste Experiment \n');
 
 %% Load Data Files
 
@@ -98,8 +98,7 @@ fprintf('  - Trial duration: %.2f seconds\n', trial_duration_sec);
 fprintf('  - Total duration: %.2f seconds\n\n', total_duration_sec);
 
 %% Combine and Reshape Data
-fprintf('Combining and reshaping data...\n');
-
+]
 % Combine data from all subjects
 data_closed_combined = cat(4, data_AC_closed, data_BA_closed, data_BO_closed, data_CMY_closed, data_JD_closed);
 data_opened_combined = cat(4, data_HIO_opened, data_KK_opened, data_KUA_opened, data_SK_T_opened, data_SM_opened);
@@ -119,14 +118,13 @@ end
 time_axis = linspace(0, total_duration_sec, size(EEG_data_closed_reshaped{1}, 2));
 channel_offset = 300; % Separation between channels in plots
 
-fprintf('Data reshaping completed.\n\n');
 
 %----------------------------------------
-%% PART 1: RAW DATA ANALYSIS
+%% 1. Raw Data 
 %----------------------------------------
 
-fprintf('=== PART 1: RAW DATA ANALYSIS ===\n\n');
-
+fprintf(' 1. Raw Data \n\n');
+        
 % Plot Raw EEG Data - All Subjects
 % All closed nose subjects first
 fprintf('\nProcessing CLOSED nose subjects:\n');
@@ -302,10 +300,10 @@ for i = 1:5
 end
 
 %----------------------------------------
-%% PART 2: FILTERING
+%% 2. Filtering
 %----------------------------------------
 
-fprintf('\n=== PART 2: FILTERING ===\n\n');
+fprintf('\n  2. Filtering \n\n');
 fprintf('Applying bandpass filter (0.5-30 Hz) to all subjects...\n');
 
 % Filter parameters
@@ -520,11 +518,10 @@ for i = 1:5
 end
 
 %----------------------------------------
-%% PART 3: ARTIFACT REMOVAL (ICA)
+%% 3. Artifact removal - ICA
 %----------------------------------------
 
-fprintf('\n=== PART 3: ARTIFACT REMOVAL (ICA) ===\n\n');
-fprintf('Performing Independent Component Analysis for artifact removal...\n');
+fprintf('\n   3. Artifact Removal (ICA) \n\n');
 
 n_components = 4;
 max_iterations = 1000;
@@ -596,7 +593,7 @@ for i = 1:5
     %       Plot ICA components PSD
     trial_for_ica = 1;
     figure;
-    fprintf('    Analyzing ICA components for %s...\n', opened_names{i});
+    fprintf('   ICA components for %s\n', opened_names{i});
     for comp = 1:n_components
         subplot(2,2,comp);
         [psd_comp, freq_comp] = pwelch(ica_reshaped(comp, :, trial_for_ica), [], [], [], sampling_rate);
@@ -636,10 +633,222 @@ for i = 1:5
     end
 end
 
+%----------------------------------------
+%% 4. Feature Extraction
+%----------------------------------------
+
+fprintf('\n  4. Feature Extraction \n\n');
+
+bands = [0.5 4; 4 8; 8 13; 13 30; 30 100];  % Delta, Theta, Alpha, Beta, Gamma
+n_bands = size(bands, 1);
+
+% Calculate feature counts
+n_time_features_per_channel = 11;
+n_freq_features_per_channel = 10;
+n_connectivity_pairs = nchoosek(n_channels, 2);  % C(17,2) = 136
+% nchoosek - binomial coefficient or all combinations
+
+n_time_features = n_time_features_per_channel * n_channels;
+n_freq_features = n_freq_features_per_channel * n_channels;
+n_connectivity_features = n_connectivity_pairs * 2;
+
+n_total_features = n_time_features + n_freq_features + n_connectivity_features; %629
 
 
+all_features_closed = zeros(n_trials * 5, n_total_features);
+all_features_opened = zeros(n_trials * 5, n_total_features);
+
+% Features for CLOSED nose subjects
+fprintf('\nFeatures for CLOSED nose subjects:\n');
+global_trial_idx = 1;
+
+for subj = 1:5
+    fprintf('  Subject %s (closed nose)\n', closed_names{subj});
+    
+    for trial = 1:n_trials
+        % Single trial data [channels × samples]
+        if exist('clean_eeg_closed', 'var')
+            trial_data = squeeze(clean_eeg_closed(:, :, trial, subj));
+        else
+            trial_data = squeeze(EEG_filtered_closed(:, :, trial, subj));
+        end
+        
+        trial_features = [];
+        
+        % Time Domain
+        time_features = [];
+        for ch = 1:n_channels
+            x = trial_data(ch, :);
+            
+            mu = mean(x);
+            sigma2 = var(x);
+            sigma = sqrt(sigma2);
+            skew_val = skewness(x);
+            kurt_val = kurtosis(x);
+            
+            RMS_val = sqrt(mean(x.^2));
+            MAD_val = mean(abs(x - mu));
+            PtP_val = max(x) - min(x);
+            
+            ZCR_val = sum(abs(diff(sign(x)))) / (2*(length(x)-1));
+            v = diff(x);        % first difference
+            a = diff(v);        % second difference
+            vRMS = sqrt(mean(v.^2));
+            aRMS = sqrt(mean(a.^2));
+            
+            time_features = [time_features, mu, sigma2, sigma, skew_val, kurt_val, ...
+                           RMS_val, MAD_val, PtP_val, ZCR_val, vRMS, aRMS];
+        end
+        
+        % Frequency Domain
+        freq_features = [];
+        for ch = 1:n_channels
+            x = trial_data(ch, :);
+            
+            % PSD
+            [pxx, f] = pwelch(x, [], [], [], sampling_rate);
+            
+            % Band powers
+            band_powers = zeros(1, n_bands);
+            for b = 1:n_bands
+                idx = f >= bands(b,1) & f <= bands(b,2);
+                band_powers(b) = sum(pxx(idx));
+            end
+            
+            [~, peak_idx] = max(pxx);
+            f_peak = f(peak_idx);
+            f_mean = sum(f.*pxx)/sum(pxx);
+            SC = sum(f.*pxx)/sum(pxx);  % spectral centroid
+            SS = sqrt(sum(((f-SC).^2).*pxx)/sum(pxx)); % spectral spread
+            P_norm = pxx/sum(pxx);
+            H = -sum(P_norm.*log(P_norm + eps)); % spectral entropy
+            
+            freq_features = [freq_features, band_powers, f_peak, f_mean, SC, SS, H];
+        end
+        
+        % Conectivity Features
+        con_features = [];
+        for i = 1:n_channels
+            for j = i+1:n_channels
+                % Linear correlation: channels i and j
+                correlation_val = corr(trial_data(i, :)', trial_data(j, :)');
+                % Coherence approximation
+                coherence_val = abs(correlation_val);
+                
+                con_features = [con_features, correlation_val, coherence_val];
+            end
+        end
+        
+        trial_features = [time_features, freq_features, con_features];
+        all_features_closed(global_trial_idx, :) = trial_features;
+        global_trial_idx = global_trial_idx + 1;
+    end
+    
+end
+
+% Features for OPENED nose subjects
+fprintf('\n Features for OPENED nose subjects:\n');
+global_trial_idx = 1;
+
+for subj = 1:5
+    fprintf('  Subject %s (opened nose) \n', opened_names{subj});
+    
+    for trial = 1:n_trials
+        if exist('clean_eeg_opened', 'var')
+            trial_data = squeeze(clean_eeg_opened(:, :, trial, subj));
+        else
+            trial_data = squeeze(EEG_filtered_opened(:, :, trial, subj));
+        end
+        
+        trial_features = [];
+        
+        % Time Domain
+        time_features = [];
+        for ch = 1:n_channels
+            x = trial_data(ch, :);
+            
+            mu = mean(x);
+            sigma2 = var(x);
+            sigma = sqrt(sigma2);
+            skew_val = skewness(x);
+            kurt_val = kurtosis(x);
+            
+            RMS_val = sqrt(mean(x.^2));
+            MAD_val = mean(abs(x - mu));
+            PtP_val = max(x) - min(x);
+            
+            ZCR_val = sum(abs(diff(sign(x)))) / (2*(length(x)-1));
+            v = diff(x);        % first difference
+            a = diff(v);        % second difference
+            vRMS = sqrt(mean(v.^2));
+            aRMS = sqrt(mean(a.^2));
+            
+            time_features = [time_features, mu, sigma2, sigma, skew_val, kurt_val, ...
+                           RMS_val, MAD_val, PtP_val, ZCR_val, vRMS, aRMS];
+        end
+        
+        % Frequency Domain
+        freq_features = [];
+        for ch = 1:n_channels
+            x = trial_data(ch, :);
+            
+            [pxx, f] = pwelch(x, [], [], [], sampling_rate);
+            
+            band_powers = zeros(1, n_bands);
+            for b = 1:n_bands
+                idx = f >= bands(b,1) & f <= bands(b,2);
+                band_powers(b) = sum(pxx(idx));
+            end
+            
+            [~, peak_idx] = max(pxx);
+            f_peak = f(peak_idx);
+            f_mean = sum(f.*pxx)/sum(pxx);
+            SC = sum(f.*pxx)/sum(pxx);  % spectral centroid
+            SS = sqrt(sum(((f-SC).^2).*pxx)/sum(pxx)); % spectral spread
+            P_norm = pxx/sum(pxx);
+            H = -sum(P_norm.*log(P_norm + eps)); % spectral entropy
+            
+            freq_features = [freq_features, band_powers, f_peak, f_mean, SC, SS, H];
+        end
+        
+        % Conectivity Features
+        con_features = [];
+        for i = 1:n_channels
+            for j = i+1:n_channels
+                % Linear correlation : channels i and j
+                correlation_val = corr(trial_data(i, :)', trial_data(j, :)');
+                
+                % Coherence approximation
+                coherence_val = abs(correlation_val);
+                
+                con_features = [con_features, correlation_val, coherence_val];
+            end
+        end
+        
+        trial_features = [time_features, freq_features, con_features];
+        all_features_opened(global_trial_idx, :) = trial_features;
+        global_trial_idx = global_trial_idx + 1;
+    end
+    
+end
 
 
+all_features_combined = [all_features_closed; all_features_opened];
+feature_labels = [zeros(size(all_features_closed, 1), 1); ones(size(all_features_opened, 1), 1)]; % 0=closed, 1=opened
+
+% z-score normalization
+feature_matrix_normalized = (all_features_combined - mean(all_features_combined)) ./ std(all_features_combined);
+
+fprintf('\nFeature Extraction Summary:\n');
+fprintf('   Total trials processed: %d\n', size(feature_matrix_normalized, 1));
+fprintf('   Closed nose trials: %d\n', sum(feature_labels == 0));
+fprintf('   Opened nose trials: %d\n', sum(feature_labels == 1));
+fprintf('   Features per trial: %d\n', size(feature_matrix_normalized, 2));
+fprintf('   Final feature matrix size: [%d × %d]\n', size(feature_matrix_normalized));
+fprintf('   Feature breakdown:\n');
+fprintf('      Time domain features: %d\n', n_time_features);
+fprintf('      Frequency domain features: %d\n', n_freq_features);
+fprintf('      Connectivity features: %d\n', n_connectivity_features);
 
 
 
