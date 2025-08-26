@@ -90,15 +90,15 @@ n_channels = size(data_AC_closed, 3);                  % 17 channels
 trial_duration_sec = n_time / sampling_rate;           % Trial duration in seconds
 total_duration_sec = n_trials * trial_duration_sec;    % Total recording duration
 
-fprintf('  - Sampling rate: %d Hz\n', sampling_rate);
-fprintf('  - Number of trials: %d\n', n_trials);
-fprintf('  - Samples per trial: %d\n', n_samples);
-fprintf('  - Number of channels: %d\n', n_channels);
-fprintf('  - Trial duration: %.2f seconds\n', trial_duration_sec);
-fprintf('  - Total duration: %.2f seconds\n\n', total_duration_sec);
+fprintf('   Sampling rate: %d Hz\n', sampling_rate);
+fprintf('   Number of trials: %d\n', n_trials);
+fprintf('   Samples per trial: %d\n', n_samples);
+fprintf('   Number of channels: %d\n', n_channels);
+fprintf('   Trial duration: %.2f seconds\n', trial_duration_sec);
+fprintf('   Total duration: %.2f seconds\n\n', total_duration_sec);
 
 %% Combine and Reshape Data
-]
+
 % Combine data from all subjects
 data_closed_combined = cat(4, data_AC_closed, data_BA_closed, data_BO_closed, data_CMY_closed, data_JD_closed);
 data_opened_combined = cat(4, data_HIO_opened, data_KK_opened, data_KUA_opened, data_SK_T_opened, data_SM_opened);
@@ -127,7 +127,7 @@ fprintf(' 1. Raw Data \n\n');
         
 % Plot Raw EEG Data - All Subjects
 % All closed nose subjects first
-fprintf('\nProcessing CLOSED nose subjects:\n');
+fprintf('\n CLOSED nose subjects:\n');
 for i = 1:5
     
     % Continuous EEG plot
@@ -185,9 +185,9 @@ for i = 1:5
 end
 
 % Process all opened nose subjects
-fprintf('\nProcessing OPENED nose subjects:\n');
+fprintf('\n OPENED nose subjects:\n');
 for i = 1:5
-    fprintf('  Processing subject %s (opened nose)...\n', opened_names{i});
+    fprintf('  Subject %s (opened nose)\n', opened_names{i});
     
     % Continuous EEG plot
     figure;
@@ -208,7 +208,6 @@ for i = 1:5
     
     % Power Spectral Density analysis
     figure;
-    fprintf('    Computing PSD and SNR for %s...\n', opened_names{i});
     
     snr_values = zeros(1, n_channels);
     signal_band = [0.5 30];
@@ -245,7 +244,6 @@ for i = 1:5
 end
 
 %% Plot Individual Epochs - Sample Trials
-fprintf('\nGenerating epoch plots for sample trials...\n');
 epoch_samples = [40, 50, 60, 70];
 epoch_time = (0:n_samples-1) / sampling_rate;
 
@@ -304,7 +302,6 @@ end
 %----------------------------------------
 
 fprintf('\n  2. Filtering \n\n');
-fprintf('Applying bandpass filter (0.5-30 Hz) to all subjects...\n');
 
 % Filter parameters
 low_cutoff = 0.5;
@@ -316,9 +313,9 @@ EEG_filtered_closed = zeros(n_channels, n_samples, n_trials, 5);
 EEG_filtered_opened = zeros(n_channels, n_samples, n_trials, 5);
 
 % Filter closed nose data
-fprintf('\nFiltering CLOSED nose data:\n');
+fprintf('\nCLOSED nose data:\n');
 for i = 1:5
-    fprintf('  Filtering subject %s (closed nose)...\n', closed_names{i});
+    fprintf('  Filtering subject %s (closed nose)\n', closed_names{i});
     
     nyquist_freq = sampling_rate / 2;
     [b_highpass, a_highpass] = butter(filter_order, low_cutoff / nyquist_freq, 'high');
@@ -335,9 +332,9 @@ for i = 1:5
 end
 
 % Filter opened nose data
-fprintf('\nFiltering OPENED nose data:\n');
+fprintf('\nOPENED nose data:\n');
 for i = 1:5
-    fprintf('  Filtering subject %s (opened nose)...\n', opened_names{i});
+    fprintf('  Filtering subject %s (opened nose)\n', opened_names{i});
     
     nyquist_freq = sampling_rate / 2;
     [b_highpass, a_highpass] = butter(filter_order, low_cutoff / nyquist_freq, 'high');
@@ -529,7 +526,7 @@ tolerance = 1e-6;
 learning_rate = 1.0;
 
 %% ICA for CLOSED nose subjects
-fprintf('\nPerforming ICA on CLOSED nose subjects:\n');
+fprintf('\n ICA on CLOSED nose subjects:\n');
 for i = 1:5    
     filtered_data_2d = reshape(EEG_filtered_closed(:,:,:,i), n_channels, []);
     
@@ -540,7 +537,7 @@ for i = 1:5
     %       Plot ICA components PSD
     trial_for_ica = 1;
     figure;
-    fprintf('    Analyzing ICA components for %s...\n', closed_names{i});
+    fprintf('    ICA components for %s...\n', closed_names{i});
     for comp = 1:n_components
         subplot(2,2,comp);
         [psd_comp, freq_comp] = pwelch(ica_reshaped(comp, :, trial_for_ica), [], [], [], sampling_rate);
@@ -582,7 +579,7 @@ end
 
 
 %% ICA for OPENED nose subjects
-fprintf('\nPerforming ICA on OPENED nose subjects:\n');
+fprintf('\n ICA on OPENED nose subjects:\n');
 for i = 1:5    
     filtered_data_2d = reshape(EEG_filtered_opened(:,:,:,i), n_channels, []);
     
