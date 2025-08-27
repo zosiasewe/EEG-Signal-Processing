@@ -15,7 +15,7 @@ function [ica_result, W, A] = ICA(signal, n_components, iterations, epsilon, alp
     V_reduced = V_sorted(:, 1:n_components);
     D_reduced = diag(D_sorted(1:n_components));
     
-    % WHitening
+    % Whitening
     W_white = D_reduced^(-1/2) * V_reduced';
     X_white = W_white * X_centered;
     
