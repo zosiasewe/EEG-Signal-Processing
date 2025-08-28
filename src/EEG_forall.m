@@ -270,3 +270,59 @@ feature_labels = [zeros(size(all_features_closed, 1), 1); ones(size(all_features
 % z-score normalization
 feature_matrix_normalized = (all_features_combined - mean(all_features_combined)) ./ std(all_features_combined);
 
+
+%----------------------------------------
+%% 4. GA - Fuzzy Extraction
+%----------------------------------------
+
+fprintf('\n  4. ES-Fuzzy Feature Extraction \n\n');
+
+feature_pool_size = size(feature_matrix_normalized, 2); % basic features
+n_extracted_features = 15;
+n_fuzzy_terms = 3; % Low / Med / High
+random_seed = 42; % For reproducibility
+ensemble_size = 1;  % Single extraction
+
+rng(random_seed);
+
+
+% Chromosome Parameters
+chromosome = createChromosome(n_extracted_features, feature_pool_size, n_fuzzy_terms);
+
+% Feature Extraction
+fuzzy_features = applyChromosome(chromosome, feature_matrix_normalized, n_extracted_features, n_fuzzy_terms);
+fprintf('Extracted fuzzy features size: %d x %d\n', size(fuzzy_features, 1), size(fuzzy_features, 2));
+
+
+% initial population
+labels = ; %TODO !!!!!!!!!
+mi = 50;           % Population size (smaller than GA)
+l = 200;           % Offspring size (λ >> μ for ES)
+T_max = 100;       % Maximum generations
+selection_mode = 'mi_plus_lambda'; % Recommended for stability
+n = 3;
+N = 101;
+
+population = initialPopulation(100, 15, 85, 3);
+
+
+% evolution strategy
+
+[best_chromosome, fitness_history] = evolutionaryStrategy_EEG(fuzzy_features, labels, mi, l, T_max, selection_mode, ...
+        n_extracted_features, feature_pool_size, n_fuzzy_terms);
+    
+figure;
+plot(1:length(fitness_history), fitness_history, 'b-', 'LineWidth', 2);
+title('EEG Evolution Strategy - Fitness Over Generations');
+xlabel('Generation');
+ylabel('Best Fitness (F1-Score)');
+grid on;
+
+% best chromosome to get final features
+best_features = applyChromosome(best_chromosome, feature_matrix, n_extracted_features, n_fuzzy_terms);
+    
+fprintf('\nFinal Results:\n');
+fprintf('Best fitness: %.4f\n', max(fitness_history));
+fprintf('Final feature dimensions: %d x %d\n', size(best_features, 1), size(best_features, 2));
+fprintf('Evolution completed in %d generations\n', length(fitness_history));
+
