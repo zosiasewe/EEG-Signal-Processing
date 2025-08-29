@@ -2,26 +2,27 @@ function fitness_values = fitnessFunction(population, feature_matrix, labels, n_
     
     fitness_values = zeros(length(population), 1);
     
+    % Use 3-fold CV
+    n_samples = size(feature_matrix, 1);
+    k_folds = 5;
+    fold_size = floor(n_samples / k_folds);
+    
+    rng(42);
+    shuffle_idx = randperm(n_samples);
+    
     for i = 1:length(population)
         try
-
+            % chromosome to get fuzzy features
             fuzzy_features = applyChromosome(population{i}, feature_matrix, n_extracted_features, n_fuzzy_terms);
             
-            % invalid features
+            %  invalid features
             if any(isnan(fuzzy_features(:))) || any(isinf(fuzzy_features(:)))
                 fitness_values(i) = 0.0;
                 continue;
             end
             
-            % 5-fold cross-validation
-            n_samples = size(fuzzy_features, 1);
-            k_folds = 5;
-            fold_size = floor(n_samples / k_folds);
+            % 3-fold cross-validation
             cv_scores = zeros(k_folds, 1);
-            
-            % random permutation for folds
-            rng(42);
-            shuffle_idx = randperm(n_samples);
             
             for fold = 1:k_folds
                 % test indices for this fold
@@ -42,8 +43,7 @@ function fitness_values = fitnessFunction(population, feature_matrix, labels, n_
                 y_test = labels(test_idx);
                 
                 try
-                    % Random Forest for classification
-                    nTrees = 30;
+                    nTrees = 15;
                     model = TreeBagger(nTrees, X_train, y_train, ...
                         'Method', 'classification', ...
                         'OOBPrediction', 'off');
@@ -51,17 +51,14 @@ function fitness_values = fitnessFunction(population, feature_matrix, labels, n_
                     [predictions, ~] = predict(model, X_test);
                     y_pred = str2double(predictions);
                     
-                    % F1-score
-                    f1_score = calculateF1Score(y_test, y_pred);
-                    cv_scores(fold) = f1_score;
+                    cv_scores(fold) = calculateF1Score(y_test, y_pred);
                     
                 catch
-                    % LDA if Random Forest fails
+                    %  LDA if Random Forest fails
                     try
                         model = fitcdiscr(X_train, y_train);
                         y_pred = predict(model, X_test);
-                        f1_score = calculateF1Score(y_test, y_pred);
-                        cv_scores(fold) = f1_score;
+                        cv_scores(fold) = calculateF1Score(y_test, y_pred);
                     catch
                         cv_scores(fold) = 0.0;
                     end

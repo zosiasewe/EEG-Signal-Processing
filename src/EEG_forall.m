@@ -28,6 +28,8 @@ close all
 
 addpath('functions');
 addpath('src');
+addpath('functions/functions_ES');
+
 
 %% Load Data Files
 
@@ -123,7 +125,7 @@ fprintf('\n Closed nose subjects:\n');
 % Raw Data Plots & PSD plots & SNR calculations
 for i = 1:5
     EEG_data_closed = EEG_data_closed_reshaped{i};
-    plotContinuousEEG(time_axis, EEG_data_closed, n_channels, channel_offset, closed_names{i}, 'closed', 'raw', channels);
+%     plotContinuousEEG(time_axis, EEG_data_closed, n_channels, channel_offset, closed_names{i}, 'closed', 'raw', channels);
     
     PSD_data_subj = EEG_data_closed_reshaped{i};
     analyzePSD(PSD_data_subj,sampling_rate, n_channels, channels, closed_names{i}, 'closed', 'raw')
@@ -133,7 +135,7 @@ end
 fprintf('\n Opened nose subjects:\n');
 for i = 1:5
     EEG_data_subj_opened = EEG_data_opened_reshaped{i};
-    plotContinuousEEG(time_axis, EEG_data_subj_opened, n_channels, channel_offset, opened_names{i}, 'opened', 'raw', channels);
+%     plotContinuousEEG(time_axis, EEG_data_subj_opened, n_channels, channel_offset, opened_names{i}, 'opened', 'raw', channels);
     
     PSD_data_subj_opened = EEG_data_opened_reshaped{i};
     analyzePSD(PSD_data_subj_opened,sampling_rate, n_channels, channels, opened_names{i}, 'opened', 'raw')
@@ -146,10 +148,10 @@ epoch_time = (0:n_samples-1) / sampling_rate;
 
 for i = 1:5
     EEG_data_closed = data_closed_combined(:, :, :, i); % all trials for this subject
-    plotIndividualEpochs(EEG_data_closed, epoch_samples, epoch_time, closed_names{i}, 'closed', n_channels, channel_offset, channels, 'raw');
+%     plotIndividualEpochs(EEG_data_closed, epoch_samples, epoch_time, closed_names{i}, 'closed', n_channels, channel_offset, channels, 'raw');
     
     EEG_data_opened = data_closed_combined(:, :, :, i); % all trials for this subject
-    plotIndividualEpochs(EEG_data_opened, epoch_samples, epoch_time, opened_names{i}, 'opened', n_channels, channel_offset, channels, 'raw');
+%     plotIndividualEpochs(EEG_data_opened, epoch_samples, epoch_time, opened_names{i}, 'opened', n_channels, channel_offset, channels, 'raw');
 end
 
 
@@ -182,13 +184,13 @@ end
 % Continuous plot & PSD plot & SNR
 for i = 1:5
     Closed_filtered_continuous = reshape(EEG_filtered_closed(:,:,:,i), n_channels, []);
-    plotContinuousEEG(time_axis, Closed_filtered_continuous, n_channels, channel_offset, closed_names{i}, 'closed', 'filt', channels);
+%     plotContinuousEEG(time_axis, Closed_filtered_continuous, n_channels, channel_offset, closed_names{i}, 'closed', 'filt', channels);
     analyzePSD(Closed_filtered_continuous, sampling_rate, n_channels, channels, closed_names{i}, 'closed', 'filt');
 end
 
 for i = 1:5
     Opened_filtered_continuous = reshape(EEG_filtered_opened(:,:,:,i), n_channels, []);
-    plotContinuousEEG(time_axis, Opened_filtered_continuous, n_channels, channel_offset, opened_names{i}, 'opened', 'filt', channels);
+%     plotContinuousEEG(time_axis, Opened_filtered_continuous, n_channels, channel_offset, opened_names{i}, 'opened', 'filt', channels);
     analyzePSD(Opened_filtered_continuous, sampling_rate, n_channels, channels, opened_names{i}, 'opened', 'filt');
 end
 
@@ -202,7 +204,7 @@ for i = 1:5
         trial_num = epoch_samples(t_idx);
         Epoch_closed_data(:, :, t_idx) = EEG_filtered_closed(:, :, trial_num, i);
     end
-    plotIndividualEpochs(Epoch_closed_data, epoch_samples, epoch_time, closed_names{i}, 'closed', n_channels, channel_offset, channels, 'filt');
+%     plotIndividualEpochs(Epoch_closed_data, epoch_samples, epoch_time, closed_names{i}, 'closed', n_channels, channel_offset, channels, 'filt');
 end
 
 
@@ -212,7 +214,7 @@ for i = 1:5
         trial_num = epoch_samples(t_idx);
         Epoch_opened_data(:, :, t_idx) = EEG_filtered_opened(:, :, trial_num, i);
     end
-    plotIndividualEpochs(Epoch_opened_data, epoch_samples, epoch_time, opened_names{i}, 'opened', n_channels, channel_offset, channels, 'filt');
+%     plotIndividualEpochs(Epoch_opened_data, epoch_samples, epoch_time, opened_names{i}, 'opened', n_channels, channel_offset, channels, 'filt');
 end
 
 %----------------------------------------
@@ -265,52 +267,48 @@ for subj = 1:5
 end
 
 all_features_combined = [all_features_closed; all_features_opened];
-feature_labels = [zeros(size(all_features_closed, 1), 1); ones(size(all_features_opened, 1), 1)]; % 0=closed, 1=opened
+
+% CREATE LABELS - This was missing!
+% 0 = closed nose, 1 = opened nose
+labels_closed = zeros(size(all_features_closed, 1), 1);  % closed nose = 0
+labels_opened = ones(size(all_features_opened, 1), 1);   % opened nose = 1
+labels = [labels_closed; labels_opened];
+
+fprintf('Created labels: %d closed nose (0), %d opened nose (1)\n', ...
+    sum(labels == 0), sum(labels == 1));
 
 % z-score normalization
 feature_matrix_normalized = (all_features_combined - mean(all_features_combined)) ./ std(all_features_combined);
 
 
 %----------------------------------------
-%% 4. GA - Fuzzy Extraction
+%% 5. ES - Fuzzy Extraction (Updated)
 %----------------------------------------
 
-fprintf('\n  4. ES-Fuzzy Feature Extraction \n\n');
+fprintf('\n  5. ES-Fuzzy Feature Extraction \n\n');
 
 feature_pool_size = size(feature_matrix_normalized, 2); % basic features
 n_extracted_features = 15;
 n_fuzzy_terms = 3; % Low / Med / High
 random_seed = 42; % For reproducibility
-ensemble_size = 1;  % Single extraction
 
 rng(random_seed);
 
+% ES Parameters
+mu = 30; % Population size
+lambda = 60; % Offspring size
+T_max = 100; % Maximum generations
+selection_mode = 'mu_plus_lambda';
 
-% Chromosome Parameters
-chromosome = createChromosome(n_extracted_features, feature_pool_size, n_fuzzy_terms);
+fprintf('Starting Evolution Strategy with labels...\n');
+fprintf('Feature matrix size: %d x %d\n', size(feature_matrix_normalized));
+fprintf('Labels size: %d x 1\n', length(labels));
 
-% Feature Extraction
-fuzzy_features = applyChromosome(chromosome, feature_matrix_normalized, n_extracted_features, n_fuzzy_terms);
-fprintf('Extracted fuzzy features size: %d x %d\n', size(fuzzy_features, 1), size(fuzzy_features, 2));
-
-
-% initial population
-labels = ; %TODO !!!!!!!!!
-mi = 50;           % Population size (smaller than GA)
-l = 200;           % Offspring size (λ >> μ for ES)
-T_max = 100;       % Maximum generations
-selection_mode = 'mi_plus_lambda'; % Recommended for stability
-n = 3;
-N = 101;
-
-population = initialPopulation(100, 15, 85, 3);
-
-
-% evolution strategy
-
-[best_chromosome, fitness_history] = evolutionaryStrategy_EEG(fuzzy_features, labels, mi, l, T_max, selection_mode, ...
+% Run evolutionary strategy with proper labels
+[best_chromosome, fitness_history] = runEvolutionStrategy(feature_matrix_normalized, labels, mu, lambda, T_max, selection_mode, ...
         n_extracted_features, feature_pool_size, n_fuzzy_terms);
     
+% Plot fitness evolution
 figure;
 plot(1:length(fitness_history), fitness_history, 'b-', 'LineWidth', 2);
 title('EEG Evolution Strategy - Fitness Over Generations');
@@ -318,8 +316,8 @@ xlabel('Generation');
 ylabel('Best Fitness (F1-Score)');
 grid on;
 
-% best chromosome to get final features
-best_features = applyChromosome(best_chromosome, feature_matrix, n_extracted_features, n_fuzzy_terms);
+% Apply best chromosome to get final features
+best_features = applyChromosome(best_chromosome, feature_matrix_normalized, n_extracted_features, n_fuzzy_terms);
     
 fprintf('\nFinal Results:\n');
 fprintf('Best fitness: %.4f\n', max(fitness_history));
