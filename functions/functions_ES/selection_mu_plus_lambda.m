@@ -6,7 +6,6 @@ function [new_population, new_fitness] = selection_mu_plus_lambda(parents, fitne
     combined_population(1:length(parents)) = parents;
     combined_population(length(parents)+1:end) = offspring;
     
-    % Combine fitness arrays
     combined_fitness = [fitness_parents; fitness_offspring];
     
     [sorted_fitness, sort_idx] = sort(combined_fitness, 'descend');

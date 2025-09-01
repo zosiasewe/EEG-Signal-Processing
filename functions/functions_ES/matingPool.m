@@ -1,19 +1,17 @@
-function selected_ind = matingPool(population, fitness_values, tournament_size)
+function selected_ind = matingPool(population, fitness_values, num_to_select)
+  
     if nargin < 3
-        tournament_size = 3;
+        num_to_select = length(population); % Default to population size
     end
-
-    population_size = numel(population); % num of individuals inside the cell array
-    selected_ind = cell(1, population_size); % initialized cell array for the chosen ones
-
-    for i = 1:population_size
-        % idx for tournament
+    
+    tournament_size = 3;
+    population_size = length(population);
+    selected_ind = cell(num_to_select, 1);
+    
+    for i = 1:num_to_select 
+        % Tournament selection
         tournament_idx = randperm(population_size, min(tournament_size, population_size));
-        
-        % fitness individuals in tournament
         tournament_fitness = fitness_values(tournament_idx);
-        
-        % the best one
         [~, best_idx] = max(tournament_fitness);
         selected_ind{i} = population{tournament_idx(best_idx)};
     end
