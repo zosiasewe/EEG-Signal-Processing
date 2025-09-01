@@ -268,22 +268,28 @@ end
 
 all_features_combined = [all_features_closed; all_features_opened];
 
-% CREATE LABELS - This was missing!
+% CREATE LABELS
 % 0 = closed nose, 1 = opened nose
 labels_closed = zeros(size(all_features_closed, 1), 1);  % closed nose = 0
 labels_opened = ones(size(all_features_opened, 1), 1);   % opened nose = 1
 labels = [labels_closed; labels_opened];
-
-fprintf('Created labels: %d closed nose (0), %d opened nose (1)\n', ...
-    sum(labels == 0), sum(labels == 1));
 
 % z-score normalization
 feature_matrix_normalized = (all_features_combined - mean(all_features_combined)) ./ std(all_features_combined);
 
 
 %----------------------------------------
-%% 5. ES - Fuzzy Extraction (Updated)
+%% 5. ES - Fuzzy Feature Extraction
 %----------------------------------------
+
+% Chromosome representation 
+% chromosome{1} = linear_weights      (n_extracted_features × feature_pool_size)
+% chromosome{2} = nonlinear_exp       (n_extracted_features × 2)
+% chromosome{3} = nonlinear_sin       (n_extracted_features × 2)
+% chromosome{4} = nonlinear_log       (n_extracted_features × 1)
+% chromosome{5} = nonlinear_pow       (n_extracted_features × 1)
+% chromosome{6} = comb_weights        (n_extracted_features × 5)
+% chromosome{7} = fuzzy_params        (n_extracted_features × n_fuzzy_terms × 3)
 
 fprintf('\n  5. ES-Fuzzy Feature Extraction \n\n');
 
@@ -291,24 +297,22 @@ feature_pool_size = size(feature_matrix_normalized, 2); % basic features
 n_extracted_features = 15;
 n_fuzzy_terms = 3; % Low / Med / High
 random_seed = 42; % For reproducibility
-
 rng(random_seed);
 
 % ES Parameters
-mu = 30; % Population size
-lambda = 60; % Offspring size
+mu = 20; % Population size
+lambda = 40; % Offspring size
 T_max = 100; % Maximum generations
 selection_mode = 'mu_plus_lambda';
 
-fprintf('Starting Evolution Strategy with labels...\n');
 fprintf('Feature matrix size: %d x %d\n', size(feature_matrix_normalized));
 fprintf('Labels size: %d x 1\n', length(labels));
 
-% Run evolutionary strategy with proper labels
+
 [best_chromosome, fitness_history] = runEvolutionStrategy(feature_matrix_normalized, labels, mu, lambda, T_max, selection_mode, ...
         n_extracted_features, feature_pool_size, n_fuzzy_terms);
     
-% Plot fitness evolution
+% fitness evolution
 figure;
 plot(1:length(fitness_history), fitness_history, 'b-', 'LineWidth', 2);
 title('EEG Evolution Strategy - Fitness Over Generations');
@@ -316,11 +320,15 @@ xlabel('Generation');
 ylabel('Best Fitness (F1-Score)');
 grid on;
 
-% Apply best chromosome to get final features
+% apply best chromosome for final features
 best_features = applyChromosome(best_chromosome, feature_matrix_normalized, n_extracted_features, n_fuzzy_terms);
     
 fprintf('\nFinal Results:\n');
 fprintf('Best fitness: %.4f\n', max(fitness_history));
 fprintf('Final feature dimensions: %d x %d\n', size(best_features, 1), size(best_features, 2));
 fprintf('Evolution completed in %d generations\n', length(fitness_history));
+
+%----------------------------------------
+%% 6. Feature Selection
+%----------------------------------------
 
