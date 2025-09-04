@@ -47,7 +47,6 @@ function [ica_result, W, A] = runICA(signal, n_components, iterations, epsilon, 
             wp = wp / norm(wp);
             
             if abs(abs(wp' * wp_old) - 1) < epsilon
-                fprintf('Component %d converged after %d iterations\n', c, iter);
                 break;
             end
         end
@@ -61,5 +60,4 @@ function [ica_result, W, A] = runICA(signal, n_components, iterations, epsilon, 
     % Mixing matrix
     A = W_white' * W';
     
-    fprintf('Found %d independent components.\n', n_components);
 end

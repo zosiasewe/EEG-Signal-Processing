@@ -14,5 +14,4 @@ function [selected_features, selected_indices] = featureSelection(features, labe
     selected_features = features(:, selected_indices);
     
     fprintf('Selected %d features using correlation method\n', k);
-    fprintf('Score range: %.4f - %.4f\n', min(scores(selected_indices)), max(scores(selected_indices)));
 end

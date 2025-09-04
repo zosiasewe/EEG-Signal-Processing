@@ -2,7 +2,6 @@
 %{
 Data set covers a project of Tasting 4 different materials
 Subjects : 5 participants with Closed nose and 5 participant with opened nose
-Materials used are described in the file "Label" as 1,2,3,4
 
 The data from each subjects consists : 160x1280x17 meaning: trials x time x channels
 
@@ -13,12 +12,6 @@ What we want to achieve?
 - We want to perform a binary classification on both opened and closed nose
 - We want to use ML algorithms for a robust classification of this closed/open nose 0/1 problem
 
-For that we want to divide the problem into 5 subgroups:
-    - Test all of the data (160 trials)
-    - Test only TM1 ("Test material 1")
-    - Test only TM2 ("Test material 2")
-    - Test only TM3 ("Test material 3")
-    - Test only TM4 ("Test material 4")
 %}
 
 %% ---------------------------------------------------------------------------------------------------------------------------
@@ -125,7 +118,7 @@ fprintf('\n Closed nose subjects:\n');
 % Raw Data Plots & PSD plots & SNR calculations
 for i = 1:5
     EEG_data_closed = EEG_data_closed_reshaped{i};
-%     plotContinuousEEG(time_axis, EEG_data_closed, n_channels, channel_offset, closed_names{i}, 'closed', 'raw', channels);
+    plotContinuousEEG(time_axis, EEG_data_closed, n_channels, channel_offset, closed_names{i}, 'closed', 'raw', channels);
     
     PSD_data_subj = EEG_data_closed_reshaped{i};
     analyzePSD(PSD_data_subj,sampling_rate, n_channels, channels, closed_names{i}, 'closed', 'raw')
@@ -135,7 +128,7 @@ end
 fprintf('\n Opened nose subjects:\n');
 for i = 1:5
     EEG_data_subj_opened = EEG_data_opened_reshaped{i};
-%     plotContinuousEEG(time_axis, EEG_data_subj_opened, n_channels, channel_offset, opened_names{i}, 'opened', 'raw', channels);
+    plotContinuousEEG(time_axis, EEG_data_subj_opened, n_channels, channel_offset, opened_names{i}, 'opened', 'raw', channels);
     
     PSD_data_subj_opened = EEG_data_opened_reshaped{i};
     analyzePSD(PSD_data_subj_opened,sampling_rate, n_channels, channels, opened_names{i}, 'opened', 'raw')
@@ -184,13 +177,13 @@ end
 % Continuous plot & PSD plot & SNR
 for i = 1:5
     Closed_filtered_continuous = reshape(EEG_filtered_closed(:,:,:,i), n_channels, []);
-%     plotContinuousEEG(time_axis, Closed_filtered_continuous, n_channels, channel_offset, closed_names{i}, 'closed', 'filt', channels);
+    plotContinuousEEG(time_axis, Closed_filtered_continuous, n_channels, channel_offset, closed_names{i}, 'closed', 'filt', channels);
     analyzePSD(Closed_filtered_continuous, sampling_rate, n_channels, channels, closed_names{i}, 'closed', 'filt');
 end
 
 for i = 1:5
     Opened_filtered_continuous = reshape(EEG_filtered_opened(:,:,:,i), n_channels, []);
-%     plotContinuousEEG(time_axis, Opened_filtered_continuous, n_channels, channel_offset, opened_names{i}, 'opened', 'filt', channels);
+    plotContinuousEEG(time_axis, Opened_filtered_continuous, n_channels, channel_offset, opened_names{i}, 'opened', 'filt', channels);
     analyzePSD(Opened_filtered_continuous, sampling_rate, n_channels, channels, opened_names{i}, 'opened', 'filt');
 end
 
@@ -310,9 +303,9 @@ feature_pool_size = size(feature_matrix_normalized,2);
 random_seed = 42;
 rng(random_seed);
 
-mu = 20;             % population size
-lambda = 40;         % offspring size
-T_max = 150;         % maximum generations
+mu = 30; % population size
+lambda = 5*mu; % offspring size
+T_max = 150; % max generations
 selection_mode = 'mu_plus_lambda';
 
 fprintf('\n    5. ES-Fuzzy Feature Extraction \n');
@@ -337,7 +330,7 @@ fprintf('Evolution completed in %d generations\n', length(fitness_history));
 
 fprintf('\n  6. Feature Selection \n\n');
 
-k = 15; 
+k = 20; 
 [final_features, feature_indices] = featureSelection(best_features, labels, k);
 
 fprintf('Original features: %d\n', size(best_features, 2));
@@ -348,9 +341,14 @@ fprintf('Selected indices: %s\n', mat2str(feature_indices));
 %% 7. Classification
 %----------------------------------------
 
+fprintf('\n  7. Classification \n\n');
+
+[y_pred_rf, rf_models] = classifyData(final_features, labels, 3, 300);
+
 %----------------------------------------
 %% 8. Polygon Area Metric
 %----------------------------------------
 
+metric = polygonareametric(labels, y_pred_rf);
 
 

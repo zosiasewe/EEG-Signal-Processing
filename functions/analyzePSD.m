@@ -20,32 +20,32 @@ function analyzePSD(EEG_data, sampling_rate, n_channels, channels, subject_name,
 
     % Plot average PSD
     avg_psd_db = 10*log10(mean(all_psd_data, 2));
-    figure; hold on;
-    plot(freq_axis, avg_psd_db, 'LineWidth', 1.2, 'Color', "#7E2F8E");
-
-
-    % Title based on data type
-    if strcmpi(data_type, 'raw')
-        title('Average Power Spectral Density - Raw Data');
-    elseif strcmpi(data_type, 'filt')
-        title('Average Power Spectral Density - Filtered Data');
-    else
-        title('Average Power Spectral Density');
-    end
-
-    if strcmpi(class, 'opened')
-        subtitle(sprintf('Subject: %s (Opened Nose)', subject_name));
-    elseif strcmpi(class, 'closed')
-        subtitle(sprintf('Subject: %s (Closed Nose)', subject_name));
-    else
-        subtitle(sprintf('Subject: %s', subject_name));
-    end
-
-    xlabel('Frequency (Hz)');
-    ylabel('PSD (dB)');
-    xlim([0 256]);
-    ylim([-80 40]);
-    grid on;
+% % %     figure; hold on;
+% % %     plot(freq_axis, avg_psd_db, 'LineWidth', 1.2, 'Color', "#7E2F8E");
+% % % 
+% % % 
+% % %     % Title based on data type
+% % %     if strcmpi(data_type, 'raw')
+% % %         title('Average Power Spectral Density - Raw Data');
+% % %     elseif strcmpi(data_type, 'filt')
+% % %         title('Average Power Spectral Density - Filtered Data');
+% % %     else
+% % %         title('Average Power Spectral Density');
+% % %     end
+% % % 
+% % %     if strcmpi(class, 'opened')
+% % %         subtitle(sprintf('Subject: %s (Opened Nose)', subject_name));
+% % %     elseif strcmpi(class, 'closed')
+% % %         subtitle(sprintf('Subject: %s (Closed Nose)', subject_name));
+% % %     else
+% % %         subtitle(sprintf('Subject: %s', subject_name));
+% % %     end
+% % % 
+% % %     xlabel('Frequency (Hz)');
+% % %     ylabel('PSD (dB)');
+% % %     xlim([0 256]);
+% % %     ylim([-80 40]);
+% % %     grid on;
 
     % Display SNR values
     fprintf('    SNR values for %s (%s nose):\n', subject_name, class);

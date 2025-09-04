@@ -1,9 +1,8 @@
 function mutants = mutation(population, n_extracted_features, feature_pool_size, n_fuzzy_terms)
-    % Mutation function for chromosomes
     % structure: {linear_weights, nonlinear_exp, nonlinear_sin, nonlinear_log, nonlinear_pow, comb_weights, fuzzy_params}
     
     mutants = cell(length(population), 1);
-    n_params = 6; % num of parameter types
+    n_params = 7; % num of parameter types
     tau_1 = 1.0 / sqrt(2 * n_params);
     tau_2 = 1.0 / sqrt(2 * sqrt(n_params));
     
@@ -11,10 +10,9 @@ function mutants = mutation(population, n_extracted_features, feature_pool_size,
         chromosome = population{i};
         mutant = cell(7, 1);
         
-        % Global mutation factor
+        % mutation factor
         r = exp(tau_1 * randn());
         
-        % Mutate each cell
         for j = 1:7
             data = chromosome{j};
             
