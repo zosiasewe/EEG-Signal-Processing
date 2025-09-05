@@ -171,7 +171,6 @@ for i = 1:5
 end
 
 
-
 %% Plot Filtered Data
 
 % Continuous plot & PSD plot & SNR
@@ -223,21 +222,21 @@ learning_rate = 1.0;
 % ICA for Closed nose subjects
 clean_eeg_closed = zeros(size(EEG_filtered_closed));
 for i = 1:5
-    fprintf('\nICA on Closed Nose Subject: %s\n', closed_names{i});
+    fprintf('ICA on Closed Nose Subject: %s\n', closed_names{i});
     clean_eeg_closed(:,:,:,i) = runICASubject(EEG_filtered_closed(:,:,:,i), 4, sampling_rate, closed_names{i}, 'closed', epoch_time);
 end
 
 % ICA for Opened nose subjects
 clean_eeg_opened = zeros(size(EEG_filtered_opened));
 for i = 1:5
-    fprintf('\nICA on Opened Nose Subject: %s\n', opened_names{i});
+    fprintf('ICA on Opened Nose Subject: %s\n', opened_names{i});
     clean_eeg_opened(:,:,:,i) = runICASubject(EEG_filtered_opened(:,:,:,i), 4, sampling_rate, opened_names{i}, 'opened', epoch_time);
 end
 
 %----------------------------------------
 %% 4. Raw Feature Extraction
 %----------------------------------------
-
+fprintf('\n   4. Raw Feature Extraction \n\n');
 bands = [0.5 4; 4 8; 8 13; 13 30; 30 100]; % freq bands
 n_trials = size(data_AC_closed, 1); % 160 trials
 sampling_rate = 512;
@@ -246,14 +245,14 @@ all_features_closed = [];
 all_features_opened = [];
 
 % Features for Closed nose subjects
-fprintf('\nMaking features for Closed nose subjects...\n');
+fprintf('\nMaking features for Closed nose subjects\n');
 for subj = 1:5
     subj_features = extractRawFeatures(clean_eeg_closed(:,:,:,subj), [], n_trials, sampling_rate, bands);
     all_features_closed = [all_features_closed; subj_features];
 end
 
 % Features for Opened nose subjects
-fprintf('\nMaking features for Opened nose subjects...\n');
+fprintf('\nMaking features for Opened nose subjects\n');
 for subj = 1:5
     subj_features = extractRawFeatures(clean_eeg_opened(:,:,:,subj), [], n_trials, sampling_rate, bands);
     all_features_opened = [all_features_opened; subj_features];
@@ -270,85 +269,203 @@ labels = [labels_closed; labels_opened];
 % z-score normalization
 feature_matrix_normalized = (all_features_combined - mean(all_features_combined)) ./ std(all_features_combined);
 
-
 %----------------------------------------
-%% 5. ES - Fuzzy Feature Extraction
+%% 5. Initial Train/Test Split 
 %----------------------------------------
-
-if isempty(gcp('nocreate'))
-    parpool('local'); % uses all available cores
-end
-
-% Chromosome representation 
-% chromosome{1} = linear_weights      (n_extracted_features × feature_pool_size)
-% chromosome{2} = nonlinear_exp       (n_extracted_features × 2)
-% chromosome{3} = nonlinear_sin       (n_extracted_features × 2)
-% chromosome{4} = nonlinear_log       (n_extracted_features × 1)
-% chromosome{5} = nonlinear_pow       (n_extracted_features × 1)
-% chromosome{6} = comb_weights        (n_extracted_features × 5)
-% chromosome{7} = fuzzy_params        (n_extracted_features × n_fuzzy_terms × 3)
-
-
-if isempty(gcp('nocreate'))
-    parpool('local'); % uses all available cores
-end
-
-fprintf('Feature matrix size: %d x %d\n', size(feature_matrix_normalized));
-fprintf('Labels size: %d x 1\n', length(labels));
-
-n_extracted_features = 25;
-n_fuzzy_terms = 3;   % Low / Med / High
-feature_pool_size = size(feature_matrix_normalized,2);
+fprintf('\n   5. Initial Train/Test Split \n');
 
 random_seed = 42;
 rng(random_seed);
 
-mu = 30; % population size
-lambda = 5*mu; % offspring size
+test_ratio = 0.2; 
+stratified = true; % class balance
+
+fprintf('Test ratio: %.1f%%\n', test_ratio * 100);
+
+% Perform stratified split
+unique_classes = unique(labels);
+train_idx_global = [];
+test_idx_global = [];
+
+for class_label = unique_classes'
+    class_indices = find(labels == class_label);
+    n_class_samples = length(class_indices);
+    
+    fprintf('Class %d: %d samples\n', class_label, n_class_samples);
+    
+    % Shuffle class indices
+    shuffled_class_idx = class_indices(randperm(n_class_samples));
+    
+    % Split this class
+    n_test_class = round(n_class_samples * test_ratio);
+    n_train_class = n_class_samples - n_test_class;
+    
+    test_idx_global = [test_idx_global; shuffled_class_idx(1:n_test_class)];
+    train_idx_global = [train_idx_global; shuffled_class_idx(n_test_class+1:end)];
+    
+    fprintf('     Train: %d, Test: %d\n', n_train_class, n_test_class);
+end
+
+% Sort indices for consistency
+train_idx_global = sort(train_idx_global);
+test_idx_global = sort(test_idx_global);
+
+
+% Check class distribution
+labels_train = labels(train_idx_global);
+labels_test = labels(test_idx_global);
+
+fprintf('Training class distribution:\n');
+for class_label = unique_classes'
+    n_class_train = sum(labels_train == class_label);
+    fprintf('  Class %d: %d (%.1f%%)\n', class_label, n_class_train, 100*n_class_train/length(labels_train));
+end
+
+fprintf('Testing class distribution:\n');
+for class_label = unique_classes'
+    n_class_test = sum(labels_test == class_label);
+    fprintf('  Class %d: %d (%.1f%%)\n', class_label, n_class_test, 100*n_class_test/length(labels_test));
+end
+
+% Verify overlap
+if ~isempty(intersect(train_idx_global, test_idx_global))
+    error('Error: Train and test indices overlap');
+else
+    fprintf(' No overlap between train and test sets\n');
+end
+
+%----------------------------------------
+%% 6. ES - Fuzzy Feature Extraction (TRAINING DATA ONLY)
+%----------------------------------------
+fprintf('\n    6. ES-Fuzzy Feature Extraction  \n');
+
+if isempty(gcp('nocreate'))
+    parpool('local');
+end
+
+% ES Parameters
+n_extracted_features = 25;
+n_fuzzy_terms = 3;   % Low / Med / High
+feature_pool_size = size(feature_matrix_normalized, 2);
+
+mu = 20; % population size
+lambda = 3*mu; % offspring size
 T_max = 150; % max generations
 selection_mode = 'mu_plus_lambda';
 
-fprintf('\n    5. ES-Fuzzy Feature Extraction \n');
-fprintf('Population: %d, Offspring: %d, Max Gen: %d, Features to extract: %d\n', mu, lambda, T_max, n_extracted_features);
-fprintf('Fuzzy terms: %d\n\n', n_fuzzy_terms);
+fprintf('  Using  %d training samples (out of %d total)\n', length(train_idx_global), length(labels));
+fprintf('  Population: %d, Offspring: %d, Max Gen: %d\n', mu, lambda, T_max);
+fprintf('  Features to extract: %d from %d raw features\n', n_extracted_features, feature_pool_size);
 
+
+fprintf('\n \n');
 [best_chromosome, fitness_history] = runEvolutionStrategy(feature_matrix_normalized, labels, ...
-    mu, lambda, T_max, selection_mode, n_extracted_features, feature_pool_size, n_fuzzy_terms);
+    mu, lambda, T_max, selection_mode, n_extracted_features, feature_pool_size, n_fuzzy_terms, train_idx_global);
+
+fprintf('ES optimization completed\n');
+fprintf('Best fitness achieved: %.4f\n', max(fitness_history));
 
 
-best_features = applyChromosome(best_chromosome, feature_matrix_normalized, n_extracted_features, n_fuzzy_terms);
+% Apply best chromosome to train and test data
+best_features_all = applyChromosome(best_chromosome, feature_matrix_normalized, n_extracted_features, n_fuzzy_terms);
 
-fprintf('\nFinal Results:\n');
-fprintf('Best fitness: %.4f\n', max(fitness_history));
-fprintf('Final feature dimensions: %d x %d\n', size(best_features,1), size(best_features,2));
-fprintf('Evolution completed in %d generations\n', length(fitness_history));
+% Extract train and test portions
+best_features_train = best_features_all(train_idx_global, :);
+best_features_test = best_features_all(test_idx_global, :);
 
-
-%----------------------------------------
-%% 6. Feature Selection
-%----------------------------------------
-
-fprintf('\n  6. Feature Selection \n\n');
-
-k = 20; 
-[final_features, feature_indices] = featureSelection(best_features, labels, k);
-
-fprintf('Original features: %d\n', size(best_features, 2));
-fprintf('Selected features: %d\n', size(final_features, 2));
-fprintf('Selected indices: %s\n', mat2str(feature_indices));
+fprintf('\nGenerated ES fuzzy features:\n');
+fprintf('  Training features: %d x %d\n', size(best_features_train));
+fprintf('  Testing features: %d x %d\n', size(best_features_test));
+fprintf('  Total features generated: %d\n', size(best_features_all, 2));
 
 %----------------------------------------
-%% 7. Classification
+%% 8. Feature Selection
 %----------------------------------------
+fprintf('\n   8. Feature Selection\n');
 
-fprintf('\n  7. Classification \n\n');
+k = 20; % features to select
+fprintf('Selecting %d best features using training data\n', k);
 
-[y_pred_rf, rf_models] = classifyData(final_features, labels, 3, 300);
+% Feature selection based ONLY on training data
+[final_features_train, feature_indices] = featureSelection(best_features_train, labels_train, k);
+
+% Apply same feature selection to test data (same indices)
+final_features_test = best_features_test(:, feature_indices);
+
+fprintf('  Selected feature indices: [%s]\n', num2str(feature_indices'));
 
 %----------------------------------------
-%% 8. Polygon Area Metric
+%% 9. Classification Train/Test Split
 %----------------------------------------
+fprintf('\n   9. Classification \n');
 
-metric = polygonareametric(labels, y_pred_rf);
+% full feature matrix with selected features 
+final_features_combined = zeros(length(labels), size(final_features_train, 2));
+final_features_combined(train_idx_global, :) = final_features_train;
+final_features_combined(test_idx_global, :) = final_features_test;
 
+k_folds_cv = 5; 
+n_trees = 300;
 
+% Use the proper classification function
+[y_pred_test, y_pred_train_cv, final_rf_model] = ...
+    classifyData(final_features_combined, labels, train_idx_global, test_idx_global, k_folds_cv, n_trees);
+
+%----------------------------------------
+%% 10. Evaluation and Results
+%----------------------------------------
+fprintf('\n   10. Final Evaluation \n');
+
+% Training performance
+train_f1 = calculateF1Score(labels_train, y_pred_train_cv);
+train_accuracy = sum(labels_train == y_pred_train_cv) / length(labels_train);
+
+% Test performance
+test_f1 = calculateF1Score(labels_test, y_pred_test);
+test_accuracy = sum(labels_test == y_pred_test) / length(labels_test);
+
+% Polygon area metric
+test_metric = polygonareametric(labels_test, y_pred_test);
+
+figure('Position', [100, 100, 1200, 400]);
+subplot(1, 2, 1);
+confusionchart(labels_train, y_pred_train_cv, 'Title', 'Training Set (CV)');
+subplot(1, 2, 2);
+confusionchart(labels_test, y_pred_test, 'Title', 'Test Set (Unseen)');
+
+%----------------------------------------
+%% 11. Results Summary
+%----------------------------------------
+fprintf('\n\n');
+
+fprintf('Dataset: EEG Taste Classification\n');
+fprintf('Task: Closed/Open Nose Classification\n');
+fprintf('Random Seed: %d\n', random_seed);
+fprintf('\n Dataset Split \n');
+fprintf('Total Samples: %d\n', length(labels));
+fprintf('Training: %d (%.1f%%)\n', length(train_idx_global), 100*length(train_idx_global)/length(labels));
+fprintf('Testing: %d (%.1f%%)\n', length(test_idx_global), 100*length(test_idx_global)/length(labels));
+
+fprintf('\n Feature Engineering \n');
+fprintf('Raw features: %d\n', size(feature_matrix_normalized, 2));
+fprintf('ES-generated features: %d\n', size(best_features_all, 2));
+fprintf('Selected features: %d\n', size(final_features_train, 2));
+fprintf('ES generations: %d\n', length(fitness_history));
+
+fprintf('\n Methodology \n');
+fprintf('ES optimization: Training data only (%d samples)\n', length(train_idx_global));
+fprintf('Feature selection: Training data only\n');
+fprintf('Cross-validation: %d-fold on training data\n', k_folds_cv);
+fprintf('Final evaluation: Held-out test set\n');
+
+fprintf('\n Performance Results \n');
+fprintf('Training F1 (CV): %.4f\n', train_f1);
+fprintf('Training Accuracy (CV): %.4f\n', train_accuracy);
+fprintf('Test F1: %.4f\n', test_f1);
+fprintf('Test Accuracy: %.4f\n', test_accuracy);
+
+fprintf('\n Model Details \n');
+fprintf('Random Forest Trees: %d\n', n_trees);
+fprintf('ES Population: %d\n', mu);
+fprintf('ES Offspring: %d\n', lambda);
+fprintf('Final Best Fitness: %.4f\n', max(fitness_history));
