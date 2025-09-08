@@ -13,7 +13,7 @@ N_RUNS = 3;
 param_configs = struct();
 
 % 1. Different number of trees
-param_configs.n_trees_list = [100, 200, 300, 500];
+param_configs.n_trees_list = [100, 200, 300];
 param_configs.n_extracted_features_list = [25];
 param_configs.k_selected_features_list = [20];
 param_configs.mu_list = [20]; 
@@ -21,7 +21,7 @@ param_configs.lambda_list = [60];
 
 % 2. Extracted features
 % param_configs.n_trees_list = [300];
-% param_configs.n_extracted_features_list = [15, 20, 25, 30, 35];
+% param_configs.n_extracted_features_list = [20, 25, 30, 35];
 % param_configs.k_selected_features_list = [20];
 % param_configs.mu_list = [20]; 
 % param_configs.lambda_list = [60]; 
@@ -29,7 +29,7 @@ param_configs.lambda_list = [60];
 % 3. Selected features
 % param_configs.n_trees_list = [300];
 % param_configs.n_extracted_features_list = [25];
-% param_configs.k_selected_features_list = [10, 15, 20, 25, 30];
+% param_configs.k_selected_features_list = [15, 20, 25, 30];
 % param_configs.mu_list = [20]; 
 % param_configs.lambda_list = [60]; 
 
@@ -38,14 +38,14 @@ param_configs.lambda_list = [60];
 % param_configs.n_extracted_features_list = [25];
 % param_configs.k_selected_features_list = [20];
 % param_configs.mu_list = [10, 15, 20, 25, 30];
-% param_configs.lambda_list = [30, 45, 60, 75, 90]; % 3*mu
+% param_configs.lambda_list =  3 * param_configs.mu_list;
 
 % 5. ES offspring ratio
 % param_configs.n_trees_list = [300];
 % param_configs.n_extracted_features_list = [25];
 % param_configs.k_selected_features_list = [20];
-% param_configs.mu_list = [20];
 % param_configs.lambda_list = [40, 60, 80, 100, 120];
+% param_configs.mu_list = param_configs.lambda_list / 3;
 
 fixedParams = struct();
 fixedParams.n_fuzzy_terms = 3;
