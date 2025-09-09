@@ -668,3 +668,187 @@ fprintf('  - detailed_parameter_boxplots.fig/.png (detailed analysis)\n');
 fprintf('  - Individual set results: results_[SetName].mat\n');
 
 fprintf('\n Completed Plots. \n');
+
+% --------------------------------
+
+fprintf('\n   Creating Separate Plots\n');
+
+colors = {'b', 'r', 'g', 'm', 'c', 'k'};
+set_names = cell(length(all_results), 1);
+for i = 1:length(all_results)
+    set_names{i} = all_results{i}.name;
+end
+
+% --------------------------
+% Plot 1: Test F1 Score Across All Parameter Sets
+figure('Name','Test F1 Score Across Parameter Sets','Position',[50,50,1000,600]);
+hold on;
+x_offset = 0;
+legend_entries = {};
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    test_f1_means = [set_data.configs.test_f1_mean];
+    test_f1_stds = [set_data.configs.test_f1_std];
+    x_pos = x_offset + (1:length(test_f1_means));
+    errorbar(x_pos, test_f1_means, test_f1_stds, 'Color', colors{mod(i-1,length(colors))+1}, ...
+        'LineWidth',2,'Marker','o','MarkerSize',4);
+    legend_entries{i} = set_data.name;
+    x_offset = x_offset + length(test_f1_means) + 1;
+end
+xlabel('Configuration Index');
+ylabel('Test F1 Score');
+title('Test F1 Score Across All Parameter Sets');
+legend(legend_entries,'Location','best','FontSize',8);
+grid on;
+
+% --------------------------
+% Plot 2: Test Accuracy Across Parameter Sets
+figure('Name','Test Accuracy Across Parameter Sets','Position',[50,50,1000,600]);
+hold on;
+x_offset = 0;
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    test_acc_means = [set_data.configs.test_accuracy_mean];
+    test_acc_stds = [set_data.configs.test_accuracy_std];
+    x_pos = x_offset + (1:length(test_acc_means));
+    errorbar(x_pos, test_acc_means, test_acc_stds, 'Color', colors{mod(i-1,length(colors))+1}, ...
+        'LineWidth',2,'Marker','s','MarkerSize',4);
+    x_offset = x_offset + length(test_acc_means) + 1;
+end
+xlabel('Configuration Index');
+ylabel('Test Accuracy');
+title('Test Accuracy Across All Parameter Sets');
+grid on;
+
+% --------------------------
+% Plot 3: Best F1 Performance by Parameter Set
+figure('Name','Best F1 by Parameter Set','Position',[50,50,1000,600]);
+best_f1_scores = zeros(length(all_results),1);
+best_f1_stds = zeros(length(all_results),1);
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    best_f1_scores(i) = set_data.best_config.test_f1_mean;
+    best_f1_stds(i) = set_data.best_config.test_f1_std;
+end
+bar(1:length(best_f1_scores), best_f1_scores, 'FaceColor', [0.3 0.7 0.9]);
+hold on;
+errorbar(1:length(best_f1_scores), best_f1_scores, best_f1_stds,'k.','LineWidth',2);
+xlabel('Parameter Set');
+ylabel('Best Test F1 Score');
+title('Best F1 Performance by Parameter Set');
+set(gca,'XTick',1:length(set_names),'XTickLabel',set_names);
+xtickangle(45);
+grid on;
+
+% --------------------------
+% Plot 4: Box plots of F1 score distributions by parameter set
+figure('Name','F1 Score Distribution by Parameter Set','Position',[50,50,1000,600]);
+all_f1_data = [];
+group_labels = {};
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    all_runs_in_set = [];
+    for j = 1:length(set_data.configs)
+        all_runs_in_set = [all_runs_in_set; set_data.configs(j).all_runs.test_f1];
+    end
+    all_f1_data = [all_f1_data; all_runs_in_set];
+    group_labels = [group_labels; repmat({set_data.name}, length(all_runs_in_set), 1)];
+end
+boxplot(all_f1_data, group_labels, 'Whisker',1.5,'Symbol','r+');
+ylabel('Test F1 Score');
+title('F1 Score Distributions by Parameter Set');
+xtickangle(30);
+grid on;
+
+% --------------------------
+% Plot 5: Polygon Area Metric
+figure('Name','Polygon Area Metric','Position',[50,50,1000,600]);
+hold on;
+x_offset = 0;
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    poly_means = [set_data.configs.test_polygon_area_mean];
+    poly_stds = [set_data.configs.test_polygon_area_std];
+    x_pos = x_offset + (1:length(poly_means));
+    errorbar(x_pos, poly_means, poly_stds, 'Color', colors{mod(i-1,length(colors))+1}, ...
+        'LineWidth',2,'Marker','^','MarkerSize',4);
+    x_offset = x_offset + length(poly_means) + 1;
+end
+xlabel('Configuration Index');
+ylabel('Test Polygon Area');
+title('Polygon Area Metric Across Parameter Sets');
+grid on;
+
+% --------------------------
+% Plot 6: Performance vs Computational Cost
+figure('Name','Performance vs Computational Cost','Position',[50,50,1000,600]);
+n_configs_per_set = cellfun(@(x) length(x.configs), all_results);
+computational_cost = n_configs_per_set * N_RUNS;
+scatter(computational_cost, best_f1_scores, 100, 1:length(all_results),'filled');
+colorbar;
+xlabel('Computational Cost (Configs × Runs)');
+ylabel('Best Test F1 Score');
+title('Performance vs Computational Cost');
+for i = 1:length(all_results)
+    text(computational_cost(i), best_f1_scores(i), sprintf('  %s', set_names{i}),'FontSize',8);
+end
+grid on;
+
+% --------------------------
+% Plot 7: Train vs Test F1 Comparison
+figure('Name','Train vs Test F1 Comparison','Position',[50,50,1000,600]);
+all_train_f1 = [];
+all_test_f1 = [];
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    all_train_f1 = [all_train_f1, [set_data.configs.train_f1_mean]];
+    all_test_f1 = [all_test_f1, [set_data.configs.test_f1_mean]];
+end
+scatter(all_train_f1, all_test_f1, 50, 'filled');
+xlabel('Train F1 Score');
+ylabel('Test F1 Score');
+title('Train vs Test F1 Performance');
+min_val = min([all_train_f1, all_test_f1]);
+max_val = max([all_train_f1, all_test_f1]);
+line([min_val max_val], [min_val max_val],'Color','r','LineStyle','--');
+grid on;
+
+% --------------------------
+% Plot 8: Impact of Test Ratio (if exists)
+figure('Name','Test Ratio Impact','Position',[50,50,1000,600]);
+test_ratio_idx = find(strcmp({all_results{:}.name}, 'TestRatioComparison'));
+if ~isempty(test_ratio_idx)
+    test_ratio_data = all_results{test_ratio_idx};
+    test_ratios = [test_ratio_data.configs.test_ratio];
+    test_f1_means = [test_ratio_data.configs.test_f1_mean];
+    test_f1_stds = [test_ratio_data.configs.test_f1_std];
+    errorbar(test_ratios, test_f1_means, test_f1_stds, 'bo-','LineWidth',2,'MarkerSize',8);
+    xlabel('Test Ratio');
+    ylabel('Test F1 Score');
+    title('Impact of Train/Test Split Ratio');
+    grid on;
+else
+    set_means = cellfun(@(x) mean([x.configs.test_f1_mean]), all_results);
+    set_stds = cellfun(@(x) std([x.configs.test_f1_mean]), all_results);
+    bar(1:length(set_means), set_means, 'FaceColor',[0.7 0.7 0.9]);
+    hold on;
+    errorbar(1:length(set_means), set_means, set_stds,'k.','LineWidth',2);
+    xlabel('Parameter Set');
+    ylabel('Mean F1 Across Configs');
+    title('Average Performance by Parameter Set');
+    set(gca,'XTick',1:length(set_names),'XTickLabel',set_names);
+    xtickangle(45);
+    grid on;
+end
+
+% --------------------------
+% Plot 9: Variance Analysis
+figure('Name','F1 Score Variance by Parameter Set','Position',[50,50,1000,600]);
+set_variances = cellfun(@(x) std([x.configs.test_f1_mean]), all_results);
+bar(1:length(set_variances), set_variances, 'FaceColor',[0.9 0.5 0.5]);
+xlabel('Parameter Set');
+ylabel('F1 Score Variance');
+title('Performance Variability by Parameter Set');
+set(gca,'XTick',1:length(set_names),'XTickLabel',set_names);
+xtickangle(45);
+grid on;
