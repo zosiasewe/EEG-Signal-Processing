@@ -201,7 +201,7 @@ for i = 1:length(all_results)
     all_train_f1 = [all_train_f1, [set_data.configs.train_f1_mean]];
     all_test_f1 = [all_test_f1, [set_data.configs.test_f1_mean]];
 end
-scatter(all_train_f1, all_test_f1, 50, 'filled', 'alpha', 0.6);
+scatter(all_train_f1, all_test_f1, 50, 'filled');
 xlabel('Train F1 Score');
 ylabel('Test F1 Score');
 title('Train vs Test F1 Performance');
