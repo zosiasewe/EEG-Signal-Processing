@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=matlab_param_test
+#SBATCH --output=matlab_output_%j.log
+#SBATCH --error=matlab_error_%j.log
+#SBATCH --time=48:00:00              # Max runtime: 48 hours
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8            # Adjust based on available cores
+#SBATCH --mem=32G                    # Adjust based on available memory
+#SBATCH --partition=compute          # Check your cluster's partition names
+
+# Load MATLAB module (adjust module name as needed)
+module load matlab
+
+# Change to your project directory
+cd /path/to/your/project
+
+# Run MATLAB script
+matlab -nodisplay -nosplash -nodesktop -r "try; run('src/your_main_script.m'); catch ME; fprintf('Error: %s\n', ME.message); exit(1); end; exit(0);"
