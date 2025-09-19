@@ -2,24 +2,14 @@ clc
 clear
 close all
 
-% Cluster optimization setup
-fprintf('Starting job on node: %s\n', getenv('SLURMD_NODENAME'));
-fprintf('Job ID: %s\n', getenv('SLURM_JOB_ID'));
-fprintf('Available cores: %s\n', getenv('SLURM_CPUS_PER_TASK'));
-
-% Disable graphics for cluster
-set(0,'DefaultFigureVisible','off');
-
 N_RUNS = 20;
 
 timestamp_str = datestr(now, 'yyyy_mm_dd_HH_MM_SS');
 fprintf('Rozpoczynam testy parametrów: %s\n', timestamp_str);
-
-% Define ALL parameter sets first
-all_param_sets = {};
+param_sets = {};
 
 % 1.Different number of trees
-all_param_sets{end+1} = struct('name', 'TreesComparison', ...
+param_sets{end+1} = struct('name', 'TreesComparison', ...
     'n_trees_list', [100, 200, 300, 500], ...
     'n_extracted_features_list', [25], ...
     'k_selected_features_list', [20], ...
@@ -28,7 +18,7 @@ all_param_sets{end+1} = struct('name', 'TreesComparison', ...
     'test_ratio_list', [0.2]);
 
 % 2.Extracted features
-all_param_sets{end+1} = struct(...
+param_sets{end+1} = struct(...
     'name', 'ExtractedFeatures', ...
     'n_trees_list', [300], ...
     'n_extracted_features_list', [20, 25, 30, 35], ...
@@ -38,7 +28,7 @@ all_param_sets{end+1} = struct(...
     'test_ratio_list', [0.2]);
 
 % 3.Selected features
-all_param_sets{end+1} = struct(...
+param_sets{end+1} = struct(...
     'name', 'SelectedFeatures', ...
     'n_trees_list', [300], ...
     'n_extracted_features_list', [25], ...
@@ -47,8 +37,8 @@ all_param_sets{end+1} = struct(...
     'lambda_list', [120], ...
     'test_ratio_list', [0.2]);
 
-% 4.ES population sizes (INCOMPLETE - needs restart)
-all_param_sets{end+1} = struct(...
+% 4.ES population sizes
+param_sets{end+1} = struct(...
     'name', 'PopulationSizes', ...
     'n_trees_list', [300], ...
     'n_extracted_features_list', [25], ...
@@ -57,8 +47,8 @@ all_param_sets{end+1} = struct(...
     'lambda_list', [30, 45, 60, 75, 90], ... % 3 * mu_list
     'test_ratio_list', [0.2]);
 
-% 5.ES offspring ratio (PARTIAL - resume from config 11)
-all_param_sets{end+1} = struct(...
+% 5.ES offspring ratio
+param_sets{end+1} = struct(...
     'name', 'OffspringRatio', ...
     'n_trees_list', [300], ...
     'n_extracted_features_list', [25], ...
@@ -67,8 +57,8 @@ all_param_sets{end+1} = struct(...
     'mu_list', [13, 20, 27, 33, 40], ... % lambda_list / 3
     'test_ratio_list', [0.2]);
 
-% 6. Test ratio comparison (NOT STARTED)
-all_param_sets{end+1} = struct(...
+% 6. Test ratio comparison
+param_sets{end+1} = struct(...
     'name', 'TestRatioComparison', ...
     'n_trees_list', [300], ...
     'n_extracted_features_list', [25], ...
@@ -76,27 +66,6 @@ all_param_sets{end+1} = struct(...
     'mu_list', [40], ...
     'lambda_list', [120], ...
     'test_ratio_list', [0.2, 0.25, 0.3, 0.4, 0.5]);
-
-% Define completed parameter sets (based on your results files)
-completed_sets = {'TreesComparison', 'SelectedFeatures', 'ExtractedFeatures'};
-
-% Define partially completed sets and their last completed configuration
-partial_sets = struct();
-partial_sets.OffspringRatio = 10; % Last completed config number
-
-% Filter out completed parameter sets
-param_sets = {};
-for i = 1:length(all_param_sets)
-    if ~ismember(all_param_sets{i}.name, completed_sets)
-        param_sets{end+1} = all_param_sets{i};
-    end
-end
-
-fprintf('Skipping %d completed parameter sets: %s\n', length(completed_sets), strjoin(completed_sets, ', '));
-fprintf('Remaining parameter sets to test: %d\n', length(param_sets));
-for i = 1:length(param_sets)
-    fprintf('  - %s\n', param_sets{i}.name);
-end
 
 fixedParams = struct();
 fixedParams.n_fuzzy_terms = 3;
@@ -221,46 +190,14 @@ labels = [labels_closed; labels_opened];
 
 feature_matrix_normalized = (all_features_combined - mean(all_features_combined)) ./ std(all_features_combined);
 
-%% Params testing with cluster optimization
-
-% Set up parallel pool with cluster resources
+%% Params testing
 if isempty(gcp('nocreate'))
-    n_workers = str2double(getenv('SLURM_CPUS_PER_TASK'));
-    if isnan(n_workers) || n_workers == 0
-        n_workers = 4; % fallback
-    end
-    parpool('local', n_workers);
-    fprintf('Started parallel pool with %d workers\n', n_workers);
+    parpool('local');
 end
 
 fprintf('\n   Testing parameters:\n');
-fprintf('Total parameter sets to run: %d\n', length(param_sets));
+fprintf('Total parameter sets: %d\n', length(param_sets));
 fprintf('Runs per configuration: %d\n', N_RUNS);
-
-% Calculate total remaining configs
-total_remaining_configs = 0;
-for i = 1:length(param_sets)
-    current_set = param_sets{i};
-    n_trees_list = current_set.n_trees_list;
-    n_extracted_features_list = current_set.n_extracted_features_list;
-    k_selected_features_list = current_set.k_selected_features_list;
-    lambda_list = current_set.lambda_list;
-    mu_list = current_set.mu_list;
-    test_ratio_list = current_set.test_ratio_list;
-    
-    set_configs = length(n_trees_list) * length(n_extracted_features_list) * ...
-                  length(k_selected_features_list) * length(lambda_list) * ...
-                  length(mu_list) * length(test_ratio_list);
-    
-    % Subtract completed configs for partial sets
-    if strcmp(current_set.name, 'OffspringRatio')
-        set_configs = set_configs - 10; % 10 already completed
-    end
-    
-    total_remaining_configs = total_remaining_configs + set_configs;
-    fprintf('  %s: %d configurations\n', current_set.name, set_configs);
-end
-fprintf('Total remaining configurations: %d\n', total_remaining_configs);
 
 all_results = {};
 overall_best_f1 = 0;
@@ -269,241 +206,193 @@ overall_best_set_name = '';
 
 total_start_time = tic;
 
-% Add checkpointing
-checkpoint_file = sprintf('checkpoint_%s.mat', timestamp_str);
-save_frequency = 2; % Save every 2 configurations
+for set_idx = 1:length(param_sets)
+    current_set = param_sets{set_idx};
+   
+    fprintf('\n   Parameters set %d/%d: %s ===\n', set_idx, length(param_sets), current_set.name);
+   
+    % Total configs - NOW INCLUDING TEST RATIO
+    n_trees_list = current_set.n_trees_list;
+    n_extracted_features_list = current_set.n_extracted_features_list;
+    k_selected_features_list = current_set.k_selected_features_list;
+    lambda_list = current_set.lambda_list;
+    mu_list = current_set.mu_list;
+    test_ratio_list = current_set.test_ratio_list;
+   
+    total_configs = length(n_trees_list) * length(n_extracted_features_list) * ...
+                   length(k_selected_features_list) * length(lambda_list) * ...
+                   length(mu_list) * length(test_ratio_list);
+   
+    fprintf('Configurations in this set: %d\n', total_configs);
+   
+    results_summary = [];
+    config_idx = 0;
+    set_start_time = tic;
+   
+    for n_trees = n_trees_list
+        for n_extracted_features = n_extracted_features_list
+            for k_selected_features = k_selected_features_list
+                for lambda_numbers = lambda_list
+                    for mu_numbers = mu_list
+                        for test_ratio = test_ratio_list
+                            config_idx = config_idx + 1;
+                           
+                            fprintf('\n Config %d/%d: T=%d, E=%d, S=%d, ?=%d, ?=%d, TestRatio=%.2f \n', ...
+                                config_idx, total_configs, n_trees, n_extracted_features, ...
+                                k_selected_features, mu_numbers, lambda_numbers, test_ratio);
+                            
+                            % ZAPISYWANIE DODATKWE
+                            if mod(config_idx, 5) == 0  % co 5 konfiguracji
+                                temp_results = results_summary;
+                                save(sprintf('temp_%s_config_%d_%s.mat', current_set.name, config_idx, timestamp_str), ...
+                                     'temp_results', 'current_set');
+                                fprintf('  Temporary save: config %d/%d\n', config_idx, total_configs);
+                            end
 
-try
-    for set_idx = 1:length(param_sets)
-        current_set = param_sets{set_idx};
-       
-        fprintf('\n=== Parameters set %d/%d: %s ===\n', set_idx, length(param_sets), current_set.name);
-       
-        % Check if this is a partially completed set
-        start_config = 1;
-        if isfield(partial_sets, current_set.name)
-            start_config = partial_sets.(current_set.name) + 1;
-            fprintf('Resuming %s from configuration %d\n', current_set.name, start_config);
-        end
-        
-        n_trees_list = current_set.n_trees_list;
-        n_extracted_features_list = current_set.n_extracted_features_list;
-        k_selected_features_list = current_set.k_selected_features_list;
-        lambda_list = current_set.lambda_list;
-        mu_list = current_set.mu_list;
-        test_ratio_list = current_set.test_ratio_list;
-       
-        total_configs = length(n_trees_list) * length(n_extracted_features_list) * ...
-                       length(k_selected_features_list) * length(lambda_list) * ...
-                       length(mu_list) * length(test_ratio_list);
-       
-        fprintf('Total configurations in this set: %d\n', total_configs);
-        if start_config > 1
-            fprintf('Configurations to run: %d\n', total_configs - start_config + 1);
-        end
-       
-        results_summary = [];
-        config_idx = 0;
-        set_start_time = tic;
-       
-        for n_trees = n_trees_list
-            for n_extracted_features = n_extracted_features_list
-                for k_selected_features = k_selected_features_list
-                    for lambda_numbers = lambda_list
-                        for mu_numbers = mu_list
-                            for test_ratio = test_ratio_list
-                                config_idx = config_idx + 1;
-                                
-                                % Skip if this configuration was already completed
-                                if config_idx < start_config
-                                    continue;
+                            % results storage
+                            train_f1_runs = zeros(N_RUNS, 1);
+                            test_f1_runs = zeros(N_RUNS, 1);
+                            train_accuracy_runs = zeros(N_RUNS, 1);
+                            test_accuracy_runs = zeros(N_RUNS, 1);
+                            best_fitness_runs = zeros(N_RUNS, 1);
+                            test_polygon_area_runs = zeros(N_RUNS, 1);
+                           
+                            config_start_time = tic;
+                           
+                            for run = 1:N_RUNS
+                                if mod(run, 10) == 0 || run == 1
+                                    fprintf('  Run %d/%d...', run, N_RUNS);
                                 end
                                
-                                fprintf('\n Config %d/%d: T=%d, E=%d, S=%d, μ=%d, λ=%d, TestRatio=%.2f \n', ...
-                                    config_idx, total_configs, n_trees, n_extracted_features, ...
-                                    k_selected_features, mu_numbers, lambda_numbers, test_ratio);
-                                
-                                % Enhanced saving with checkpointing
-                                if mod(config_idx, save_frequency) == 0
-                                    temp_results = results_summary;
-                                    checkpoint_data = struct();
-                                    checkpoint_data.current_set_idx = set_idx;
-                                    checkpoint_data.current_config_idx = config_idx;
-                                    checkpoint_data.results_summary = temp_results;
-                                    checkpoint_data.timestamp_str = timestamp_str;
-                                    checkpoint_data.current_set = current_set;
-                                    
-                                    save(checkpoint_file, 'checkpoint_data');
-                                    save(sprintf('temp_%s_config_%d_%s.mat', current_set.name, config_idx, timestamp_str), ...
-                                         'temp_results', 'current_set');
-                                    fprintf('  Checkpoint saved: config %d/%d\n', config_idx, total_configs);
-                                end
-
-                                % results storage
-                                train_f1_runs = zeros(N_RUNS, 1);
-                                test_f1_runs = zeros(N_RUNS, 1);
-                                train_accuracy_runs = zeros(N_RUNS, 1);
-                                test_accuracy_runs = zeros(N_RUNS, 1);
-                                best_fitness_runs = zeros(N_RUNS, 1);
-                                test_polygon_area_runs = zeros(N_RUNS, 1);
+                                rng('shuffle');
                                
-                                config_start_time = tic;
+                                unique_classes = unique(labels);
+                                train_idx_global = [];
+                                test_idx_global = [];
                                
-                                for run = 1:N_RUNS
-                                    if mod(run, 10) == 0 || run == 1
-                                        fprintf('  Run %d/%d...', run, N_RUNS);
-                                    end
+                                for class_label = unique_classes'
+                                    class_indices = find(labels == class_label);
+                                    n_class_samples = length(class_indices);
+                                    shuffled_class_idx = class_indices(randperm(n_class_samples));
+                                    n_test_class = round(n_class_samples * test_ratio); % USING VARIABLE
                                    
-                                    rng('shuffle');
-                                   
-                                    unique_classes = unique(labels);
-                                    train_idx_global = [];
-                                    test_idx_global = [];
-                                   
-                                    for class_label = unique_classes'
-                                        class_indices = find(labels == class_label);
-                                        n_class_samples = length(class_indices);
-                                        shuffled_class_idx = class_indices(randperm(n_class_samples));
-                                        n_test_class = round(n_class_samples * test_ratio);
-                                       
-                                        test_idx_global = [test_idx_global; shuffled_class_idx(1:n_test_class)];
-                                        train_idx_global = [train_idx_global; shuffled_class_idx(n_test_class+1:end)];
-                                    end
-                                   
-                                    train_idx_global = sort(train_idx_global);
-                                    test_idx_global = sort(test_idx_global);
-                                    labels_train = labels(train_idx_global);
-                                    labels_test = labels(test_idx_global);
-                                   
-                                    % ES Feature Extraction
-                                    [best_chromosome, fitness_history] = runEvolutionStrategy(...
-                                        feature_matrix_normalized, labels, ...
-                                        mu_numbers, lambda_numbers, fixedParams.T_max, ...
-                                        'mu_plus_lambda', n_extracted_features, size(feature_matrix_normalized, 2), ...
-                                        fixedParams.n_fuzzy_terms, train_idx_global);
-                                   
-                                    % Apply chromosome
-                                    best_features_all = applyChromosome(best_chromosome, feature_matrix_normalized, ...
-                                        n_extracted_features, fixedParams.n_fuzzy_terms);
-                                   
-                                    best_features_train = best_features_all(train_idx_global, :);
-                                    best_features_test = best_features_all(test_idx_global, :);
-                                   
-                                    % Feature Selection
-                                    [final_features_train, feature_indices] = featureSelection(best_features_train, labels_train, k_selected_features);
-                                    final_features_test = best_features_test(:, feature_indices);
-                                   
-                                    % Classification
-                                    final_features_combined = zeros(length(labels), size(final_features_train, 2));
-                                    final_features_combined(train_idx_global, :) = final_features_train;
-                                    final_features_combined(test_idx_global, :) = final_features_test;
-                                   
-                                    [y_pred_test, y_pred_train_cv, ~] = classifyData(final_features_combined, labels, ...
-                                        train_idx_global, test_idx_global, fixedParams.k_folds_cv, n_trees);
-                                   
-                                    % Calculate metrics
-                                    train_f1_runs(run) = calculateF1Score(labels_train, y_pred_train_cv);
-                                    test_f1_runs(run) = calculateF1Score(labels_test, y_pred_test);
-                                    train_accuracy_runs(run) = sum(labels_train == y_pred_train_cv) / length(labels_train);
-                                    test_accuracy_runs(run) = sum(labels_test == y_pred_test) / length(labels_test);
-                                    best_fitness_runs(run) = max(fitness_history);
-                                   
-                                    temp_metrics = polygonareametric(labels_test, y_pred_test);
-                                    test_polygon_area_runs(run) = temp_metrics.PA;
-                                   
-                                    if mod(run, 10) == 0 || run == 1
-                                        fprintf(' F1=%.3f\n', test_f1_runs(run));
-                                    end
+                                    test_idx_global = [test_idx_global; shuffled_class_idx(1:n_test_class)];
+                                    train_idx_global = [train_idx_global; shuffled_class_idx(n_test_class+1:end)];
                                 end
                                
-                                % Store configuration results
-                                config_results = struct();
-                                config_results.n_trees = n_trees;
-                                config_results.n_extracted_features = n_extracted_features;
-                                config_results.k_selected_features = k_selected_features;
-                                config_results.lambda_numbers = lambda_numbers;
-                                config_results.mu_numbers = mu_numbers;
-                                config_results.test_ratio = test_ratio;
+                                train_idx_global = sort(train_idx_global);
+                                test_idx_global = sort(test_idx_global);
+                                labels_train = labels(train_idx_global);
+                                labels_test = labels(test_idx_global);
                                
-                                config_results.train_f1_mean = mean(train_f1_runs);
-                                config_results.train_f1_std = std(train_f1_runs);
-                                config_results.test_f1_mean = mean(test_f1_runs);
-                                config_results.test_f1_std = std(test_f1_runs);
-                                config_results.train_accuracy_mean = mean(train_accuracy_runs);
-                                config_results.train_accuracy_std = std(train_accuracy_runs);
-                                config_results.test_accuracy_mean = mean(test_accuracy_runs);
-                                config_results.test_accuracy_std = std(test_accuracy_runs);
-                                config_results.best_fitness_mean = mean(best_fitness_runs);
-                                config_results.best_fitness_std = std(best_fitness_runs);
-                                config_results.test_polygon_area_mean = mean(test_polygon_area_runs);
-                                config_results.test_polygon_area_std = std(test_polygon_area_runs);
+                                % ES Feature Extraction
+                                [best_chromosome, fitness_history] = runEvolutionStrategy(...
+                                    feature_matrix_normalized, labels, ...
+                                    mu_numbers, lambda_numbers, fixedParams.T_max, ...
+                                    'mu_plus_lambda', n_extracted_features, size(feature_matrix_normalized, 2), ...
+                                    fixedParams.n_fuzzy_terms, train_idx_global);
                                
-                                config_results.all_runs = struct();
-                                config_results.all_runs.train_f1 = train_f1_runs;
-                                config_results.all_runs.test_f1 = test_f1_runs;
-                                config_results.all_runs.train_accuracy = train_accuracy_runs;
-                                config_results.all_runs.test_accuracy = test_accuracy_runs;
-                                config_results.all_runs.best_fitness = best_fitness_runs;
-                                config_results.all_runs.test_polygon_area = test_polygon_area_runs;
+                                % Apply chromosome
+                                best_features_all = applyChromosome(best_chromosome, feature_matrix_normalized, ...
+                                    n_extracted_features, fixedParams.n_fuzzy_terms);
                                
-                                results_summary = [results_summary; config_results];
+                                best_features_train = best_features_all(train_idx_global, :);
+                                best_features_test = best_features_all(test_idx_global, :);
                                
-                                config_time = toc(config_start_time);
-                                fprintf('  Config completed in %.1f min. Test F1: %.4f±%.4f, Acc: %.4f±%.4f\n', ...
-                                    config_time/60, config_results.test_f1_mean, config_results.test_f1_std, ...
-                                    config_results.test_accuracy_mean, config_results.test_accuracy_std);
+                                % Feature Selection
+                                [final_features_train, feature_indices] = featureSelection(best_features_train, labels_train, k_selected_features);
+                                final_features_test = best_features_test(:, feature_indices);
                                
-                                if config_results.test_f1_mean > overall_best_f1 %best
-                                    overall_best_f1 = config_results.test_f1_mean;
-                                    overall_best_config = config_results;
-                                    overall_best_set_name = current_set.name;
-                                    fprintf('  *** NEW BEST OVERALL F1: %.4f ***\n', overall_best_f1);
+                                % Classification
+                                final_features_combined = zeros(length(labels), size(final_features_train, 2));
+                                final_features_combined(train_idx_global, :) = final_features_train;
+                                final_features_combined(test_idx_global, :) = final_features_test;
+                               
+                                [y_pred_test, y_pred_train_cv, ~] = classifyData(final_features_combined, labels, ...
+                                    train_idx_global, test_idx_global, fixedParams.k_folds_cv, n_trees);
+                               
+                                % Calculate metrics
+                                train_f1_runs(run) = calculateF1Score(labels_train, y_pred_train_cv);
+                                test_f1_runs(run) = calculateF1Score(labels_test, y_pred_test);
+                                train_accuracy_runs(run) = sum(labels_train == y_pred_train_cv) / length(labels_train);
+                                test_accuracy_runs(run) = sum(labels_test == y_pred_test) / length(labels_test);
+                                best_fitness_runs(run) = max(fitness_history);
+                               
+                                temp_metrics = polygonareametric(labels_test, y_pred_test);
+                                test_polygon_area_runs(run) = temp_metrics.PA;
+                               
+                                if mod(run, 10) == 0 || run == 1
+                                    fprintf(' F1=%.3f\n', test_f1_runs(run));
                                 end
-                            end % test_ratio loop
-                        end
+                            end
+                           
+                            % Store configuration results
+                            config_results = struct();
+                            config_results.n_trees = n_trees;
+                            config_results.n_extracted_features = n_extracted_features;
+                            config_results.k_selected_features = k_selected_features;
+                            config_results.lambda_numbers = lambda_numbers;
+                            config_results.mu_numbers = mu_numbers;
+                            config_results.test_ratio = test_ratio; % NEW FIELD
+                           
+                            config_results.train_f1_mean = mean(train_f1_runs);
+                            config_results.train_f1_std = std(train_f1_runs);
+                            config_results.test_f1_mean = mean(test_f1_runs);
+                            config_results.test_f1_std = std(test_f1_runs);
+                            config_results.train_accuracy_mean = mean(train_accuracy_runs);
+                            config_results.train_accuracy_std = std(train_accuracy_runs);
+                            config_results.test_accuracy_mean = mean(test_accuracy_runs);
+                            config_results.test_accuracy_std = std(test_accuracy_runs);
+                            config_results.best_fitness_mean = mean(best_fitness_runs);
+                            config_results.best_fitness_std = std(best_fitness_runs);
+                            config_results.test_polygon_area_mean = mean(test_polygon_area_runs);
+                            config_results.test_polygon_area_std = std(test_polygon_area_runs);
+                           
+                            config_results.all_runs = struct();
+                            config_results.all_runs.train_f1 = train_f1_runs;
+                            config_results.all_runs.test_f1 = test_f1_runs;
+                            config_results.all_runs.train_accuracy = train_accuracy_runs;
+                            config_results.all_runs.test_accuracy = test_accuracy_runs;
+                            config_results.all_runs.best_fitness = best_fitness_runs;
+                            config_results.all_runs.test_polygon_area = test_polygon_area_runs;
+                           
+                            results_summary = [results_summary; config_results];
+                           
+                            config_time = toc(config_start_time);
+                            fprintf('  Config completed in %.1f min. Test F1: %.4f±%.4f, Acc: %.4f±%.4f\n', ...
+                                config_time/60, config_results.test_f1_mean, config_results.test_f1_std, ...
+                                config_results.test_accuracy_mean, config_results.test_accuracy_std);
+                           
+                            if config_results.test_f1_mean > overall_best_f1 %best
+                                overall_best_f1 = config_results.test_f1_mean;
+                                overall_best_config = config_results;
+                                overall_best_set_name = current_set.name;
+                            end
+                        end % test_ratio loop
                     end
                 end
             end
         end
-       
-        % Storing results for this set
-        set_results = struct();
-        set_results.name = current_set.name;
-        set_results.configs = results_summary;
-        set_results.best_config = results_summary(find([results_summary.test_f1_mean] == max([results_summary.test_f1_mean]), 1));
-        all_results{set_idx} = set_results;
-       
-        set_time = toc(set_start_time);
-        fprintf('\n=== %s COMPLETED in %.1f hours ===\n', current_set.name, set_time/3600);
-        fprintf('Best config in set: F1=%.4f±%.4f\n', set_results.best_config.test_f1_mean, set_results.best_config.test_f1_std);
-       
-        % Save individual set results
-        save(sprintf('results_%s_%s.mat', current_set.name, timestamp_str), ...
-         'set_results', 'fixedParams', 'N_RUNS', 'timestamp_str');
-        
-        fprintf('Results saved for %s\n', current_set.name);
     end
-    
-catch ME
-    fprintf('\nERROR OCCURRED: %s\n', ME.message);
-    fprintf('Stack trace:\n');
-    for i = 1:length(ME.stack)
-        fprintf('  %s at line %d\n', ME.stack(i).name, ME.stack(i).line);
-    end
-    
-    % Save current progress before exiting
-    if exist('results_summary', 'var') && ~isempty(results_summary)
-        save(sprintf('error_recovery_%s.mat', timestamp_str), 'results_summary', 'ME', 'all_results');
-        fprintf('Progress saved to error_recovery_%s.mat\n', timestamp_str);
-    end
-    
-    rethrow(ME);
+   
+    % Storing results
+    set_results = struct();
+    set_results.name = current_set.name;
+    set_results.configs = results_summary;
+    set_results.best_config = results_summary(find([results_summary.test_f1_mean] == max([results_summary.test_f1_mean]), 1));
+    all_results{set_idx} = set_results;
+   
+    set_time = toc(set_start_time);
+    fprintf('\n    %s Completed in %.1f hours \n', current_set.name, set_time/3600);
+    fprintf('Best config in set: F1=%.4f±%.4f\n', set_results.best_config.test_f1_mean, set_results.best_config.test_f1_std);
+   
+    save(sprintf('results_%s_%s.mat', current_set.name, timestamp_str), ...
+     'set_results', 'fixedParams', 'N_RUNS', 'timestamp_str');
 end
-
 total_time = toc(total_start_time);
 
 % ------------------------------------
-fprintf('\n\n=== FINAL RESULTS ===\n');
+fprintf('\n\n   Final Results \n');
 fprintf('Total execution time: %.1f hours\n', total_time/3600);
 fprintf('Total parameter sets tested: %d\n', length(param_sets));
 
@@ -522,7 +411,7 @@ for i = 1:length(all_results)
         sprintf('%.1f min', (total_time/3600*60)/(sum(cellfun(@(x) length(x.configs), all_results)))));
 end
 
-fprintf('\n=== OVERALL BEST CONFIGURATION ===\n');
+fprintf('\n   Best Configuration   \n');
 fprintf('Parameter Set: %s\n', overall_best_set_name);
 fprintf('Trees: %d, Extracted Features: %d, Selected Features: %d\n', ...
     overall_best_config.n_trees, overall_best_config.n_extracted_features, overall_best_config.k_selected_features);
@@ -532,7 +421,7 @@ fprintf('Test F1: %.4f ± %.4f\n', overall_best_config.test_f1_mean, overall_bes
 fprintf('Test Accuracy: %.4f ± %.4f\n', overall_best_config.test_accuracy_mean, overall_best_config.test_accuracy_std);
 fprintf('Test Polygon Area: %.4f ± %.4f\n', overall_best_config.test_polygon_area_mean, overall_best_config.test_polygon_area_std);
 
-% Save all results
+% Save all
 save(sprintf('all_parameter_results_%s.mat', timestamp_str), ...
      'all_results', 'overall_best_config', 'overall_best_set_name', ...
      'fixedParams', 'N_RUNS', 'timestamp_str', 'total_time');
@@ -541,15 +430,189 @@ backup_filename = sprintf('backup_results_%s.mat', timestamp_str);
 save(backup_filename, 'all_results', 'overall_best_config');
 fprintf('Backup saved as: %s\n', backup_filename);
 
-% Clean up parallel pool
-if ~isempty(gcp('nocreate'))
-    delete(gcp('nocreate'));
-    fprintf('Parallel pool cleaned up.\n');
+fprintf('\n Completed. \n');
+
+
+% ----------------------------------------------------
+%% Plots and Summary
+
+if isempty(all_results)
+    fprintf('Brak wyników do plotowania!\n');
+    return;
 end
 
-fprintf('\n=== JOB COMPLETED SUCCESSFULLY ===\n');
-fprintf('Completed on: %s\n', datestr(now));
+fprintf('\n   Creating plots with timestamp: %s\n', timestamp_str);
 
-% Skip plotting section for cluster (can be done separately)
-fprintf('Skipping plot generation for cluster run.\n');
-fprintf('Use the saved results files to generate plots locally.\n');
+colors = {'b','r','g','m','c','k'};
+set_names = cell(length(all_results),1);
+for i = 1:length(all_results)
+    set_names{i} = all_results{i}.name;
+end
+
+% --------------------------
+% Plot 1: Test F1 Score Across All Parameter Sets
+fig1 = figure('Name','Test F1 Score Across Parameter Sets','Position',[50,50,1000,600]);
+hold on;
+x_offset = 0;
+legend_entries = {};
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    test_f1_means = [set_data.configs.test_f1_mean];
+    test_f1_stds = [set_data.configs.test_f1_std];
+    x_pos = x_offset + (1:length(test_f1_means));
+    errorbar(x_pos, test_f1_means, test_f1_stds,'Color',colors{mod(i-1,length(colors))+1},...
+        'LineWidth',2,'Marker','o','MarkerSize',4);
+    legend_entries{i} = set_data.name;
+    x_offset = x_offset + length(test_f1_means) + 1;
+end
+xlabel('Configuration Index'); ylabel('Test F1 Score');
+title('Test F1 Score Across All Parameter Sets');
+legend(legend_entries,'Location','best','FontSize',8); grid on;
+savefig(fig1,sprintf('plot1_testF1_%s.fig', timestamp_str)); 
+print(fig1,sprintf('plot1_testF1_%s.png', timestamp_str),'-dpng','-r300');
+% --------------------------
+% Plot 2: Test Accuracy Across Parameter Sets
+fig2 = figure('Name','Test Accuracy Across Parameter Sets','Position',[50,50,1000,600]);
+hold on; x_offset = 0;
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    test_acc_means = [set_data.configs.test_accuracy_mean];
+    test_acc_stds = [set_data.configs.test_accuracy_std];
+    x_pos = x_offset + (1:length(test_acc_means));
+    errorbar(x_pos,test_acc_means,test_acc_stds,'Color',colors{mod(i-1,length(colors))+1},...
+        'LineWidth',2,'Marker','s','MarkerSize',4);
+    x_offset = x_offset + length(test_acc_means) + 1;
+end
+xlabel('Configuration Index'); ylabel('Test Accuracy');
+title('Test Accuracy Across All Parameter Sets'); grid on;
+savefig(fig2,sprintf('plot2_testAccuracy_%s.fig', timestamp_str)); 
+print(fig2,sprintf('plot2_testAccuracy_%s.png', timestamp_str),'-dpng','-r300');
+% --------------------------
+% Plot 3: Best F1 Performance by Parameter Set
+fig3 = figure('Name','Best F1 by Parameter Set','Position',[50,50,1000,600]);
+best_f1_scores = zeros(length(all_results),1);
+best_f1_stds = zeros(length(all_results),1);
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    best_f1_scores(i) = set_data.best_config.test_f1_mean;
+    best_f1_stds(i) = set_data.best_config.test_f1_std;
+end
+bar(1:length(best_f1_scores),best_f1_scores,'FaceColor',[0.3 0.7 0.9]); hold on;
+errorbar(1:length(best_f1_scores),best_f1_scores,best_f1_stds,'k.','LineWidth',2);
+xlabel('Parameter Set'); ylabel('Best Test F1 Score');
+title('Best F1 Performance by Parameter Set');
+set(gca,'XTick',1:length(set_names),'XTickLabel',set_names); xtickangle(45); grid on;
+savefig(fig3,sprintf('plot3_bestF1_%s.fig', timestamp_str)); 
+print(fig3,sprintf('plot3_bestF1_%s.png', timestamp_str),'-dpng','-r300');
+% --------------------------
+% Plot 4: Box plots of F1 score distributions by parameter set
+% Plot 4: Box plots of F1 score distributions by parameter set
+fig4 = figure('Name','F1 Score Distribution by Parameter Set','Position',[50,50,1200,700]);
+all_f1_data = []; group_labels = {};
+max_points_per_set = 200; % ogranicz liczb? punktów
+
+for i = 1:length(all_results)
+    set_data = all_results{i};
+    all_runs_in_set = [];
+    for j = 1:length(set_data.configs)
+        all_runs_in_set = [all_runs_in_set; set_data.configs(j).all_runs.test_f1];
+    end
+    
+    % Ogranicz liczb? punktów je?li za du?o
+    if length(all_runs_in_set) > max_points_per_set
+        idx = randperm(length(all_runs_in_set), max_points_per_set);
+        all_runs_in_set = all_runs_in_set(idx);
+    end
+    
+    all_f1_data = [all_f1_data; all_runs_in_set];
+    group_labels = [group_labels; repmat({set_data.name},length(all_runs_in_set),1)];
+end
+boxplot(all_f1_data, group_labels,'Whisker',1.5,'Symbol','r+');
+ylabel('Test F1 Score'); title('F1 Score Distributions by Parameter Set');
+xtickangle(30); grid on;
+savefig(fig4,sprintf('plot4_F1_boxplot_%s.fig', timestamp_str)); 
+print(fig4,sprintf('plot4_F1_boxplot_%s.png', timestamp_str),'-dpng','-r300');
+% --------------------------
+% Plot 5: Polygon Area Metric
+fig5 = figure('Name','Polygon Area Metric','Position',[50,50,1000,600]);
+hold on; x_offset=0;
+for i=1:length(all_results)
+    set_data = all_results{i};
+    poly_means = [set_data.configs.test_polygon_area_mean];
+    poly_stds = [set_data.configs.test_polygon_area_std];
+    x_pos = x_offset + (1:length(poly_means));
+    errorbar(x_pos,poly_means,poly_stds,'Color',colors{mod(i-1,length(colors))+1},...
+        'LineWidth',2,'Marker','^','MarkerSize',4);
+    x_offset = x_offset + length(poly_means) + 1;
+end
+xlabel('Configuration Index'); ylabel('Test Polygon Area');
+title('Polygon Area Metric Across Parameter Sets'); grid on;
+savefig(fig5,sprintf('plot5_polygonArea_%s.fig', timestamp_str)); 
+print(fig5,sprintf('plot5_polygonArea_%s.png', timestamp_str),'-dpng','-r300');
+% --------------------------
+% Plot 6: Performance vs Computational Cost
+fig6 = figure('Name','Performance vs Computational Cost','Position',[50,50,1000,600]);
+n_configs_per_set = cellfun(@(x) length(x.configs), all_results);
+computational_cost = n_configs_per_set * N_RUNS;
+scatter(computational_cost,best_f1_scores,100,1:length(all_results),'filled'); colorbar;
+xlabel('Computational Cost (Configs × Runs)'); ylabel('Best Test F1 Score');
+title('Performance vs Computational Cost');
+for i=1:length(all_results)
+    text(computational_cost(i),best_f1_scores(i),sprintf('  %s',set_names{i}),'FontSize',8);
+end
+grid on;
+savefig(fig6,sprintf('plot6_perf_vs_cost_%s.fig', timestamp_str)); 
+print(fig6,sprintf('plot6_perf_vs_cost_%s.png', timestamp_str),'-dpng','-r300');
+% --------------------------
+% Plot 7: Train vs Test F1 Comparison
+fig7 = figure('Name','Train vs Test F1 Comparison','Position',[50,50,1000,600]);
+all_train_f1 = []; all_test_f1 = [];
+for i=1:length(all_results)
+    set_data = all_results{i};
+    all_train_f1 = [all_train_f1, [set_data.configs.train_f1_mean]];
+    all_test_f1 = [all_test_f1, [set_data.configs.test_f1_mean]];
+end
+scatter(all_train_f1, all_test_f1,50,'filled');
+xlabel('Train F1 Score'); ylabel('Test F1 Score'); title('Train vs Test F1 Performance');
+min_val = min([all_train_f1, all_test_f1]); max_val = max([all_train_f1, all_test_f1]);
+line([min_val max_val],[min_val max_val],'Color','r','LineStyle','--'); grid on;
+savefig(fig7,sprintf('plot7_train_vs_test_%s.fig', timestamp_str)); 
+print(fig7,sprintf('plot7_train_vs_test_%s.png', timestamp_str),'-dpng','-r300');
+% --------------------------
+% Plot 8: Impact of Test Ratio
+fig8 = figure('Name','Test Ratio Impact','Position',[50,50,1000,600]);
+test_ratio_idx = find(strcmp({all_results{:}.name}, 'TestRatioComparison'));
+if ~isempty(test_ratio_idx)
+    test_ratio_data = all_results{test_ratio_idx};
+    test_ratios = [test_ratio_data.configs.test_ratio];
+    test_f1_means = [test_ratio_data.configs.test_f1_mean];
+    test_f1_stds = [test_ratio_data.configs.test_f1_std];
+    errorbar(test_ratios,test_f1_means,test_f1_stds,'bo-','LineWidth',2,'MarkerSize',8);
+    xlabel('Test Ratio'); ylabel('Test F1 Score'); title('Impact of Train/Test Split Ratio'); grid on;
+else
+    set_means = cellfun(@(x) mean([x.configs.test_f1_mean]), all_results);
+    set_stds = cellfun(@(x) std([x.configs.test_f1_mean]), all_results);
+    bar(1:length(set_means),set_means,'FaceColor',[0.7 0.7 0.9]); hold on;
+    errorbar(1:length(set_means),set_means,set_stds,'k.','LineWidth',2);
+    xlabel('Parameter Set'); ylabel('Mean F1 Across Configs');
+    title('Average Performance by Parameter Set'); set(gca,'XTick',1:length(set_names),'XTickLabel',set_names); xtickangle(45); grid on;
+end
+savefig(fig8,sprintf('plot8_testRatioImpact_%s.fig', timestamp_str)); 
+print(fig8,sprintf('plot8_testRatioImpact_%s.png', timestamp_str),'-dpng','-r300');
+% --------------------------
+% Plot 9: F1 Score Variance by Parameter Set
+fig9 = figure('Name','F1 Score Variance by Parameter Set','Position',[50,50,1000,600]);
+set_variances = cellfun(@(x) std([x.configs.test_f1_mean]), all_results);
+bar(1:length(set_variances),set_variances,'FaceColor',[0.9 0.5 0.5]);
+xlabel('Parameter Set'); ylabel('F1 Score Variance'); title('Performance Variability by Parameter Set');
+set(gca,'XTick',1:length(set_names),'XTickLabel',set_names); xtickangle(45); grid on;
+savefig(fig9,sprintf('plot9_F1_variance_%s.fig', timestamp_str)); 
+print(fig9,sprintf('plot9_F1_variance_%s.png', timestamp_str),'-dpng','-r300');
+
+
+fprintf('\n   SUMMARY STATISTICS \n');
+fprintf('Total configurations tested: %d\n', sum(cellfun(@(x) length(x.configs), all_results)));
+fprintf('Total runs executed: %d\n', sum(cellfun(@(x) length(x.configs), all_results)) * N_RUNS);
+fprintf('Average time per config: %.2f minutes\n', (total_time/60) / sum(cellfun(@(x) length(x.configs), all_results)));
+
+fprintf('All 9 figures saved as .fig and .png files with timestamp: %s\n', timestamp_str);
