@@ -22,7 +22,8 @@ The project aimed to binary classify the data and see the performance for the ta
 5. Classification
 6. Checking which configuration of parameters was the best
 <br />
-**Feature Extraction method:** <br />
+## Feature Extraction method:
+
 <br />
 EEG data usually contains a lot of information, but it needs translation.<br />
 Feature extraction identifies which parts of the brain signal are most important for our task.<br />
@@ -37,10 +38,12 @@ A novel (in this field) feature extraction method combining Evolutionary Algorit
   In my case, it is used for extracting features.<br />
 <br />
 From our EEG data, we first create some Raw Features. <br />
-**629 features**<br />
+**629 features**
+  <br />
 Then, from them, we start the evolutionary algorithm process. <br />
 1. We create an initial population by describing it with chromosomes.<br />
-   Each chromosome consists of **7 genes**.<br />
+   Each chromosome consists of **7 genes**.
+   <br />
    Each of the genes is a representation of some linear & non-linear transformations & weighted combination of them. After that, it is mapped to Fuzzy Membership Degrees.<br />
 <br />
    Example:<br />
@@ -67,7 +70,19 @@ Then, from them, we start the evolutionary algorithm process. <br />
    - Fuzzy feature #3 (HIGH): 0.000<br />
   <br />
    It gives us a robust representation of our feature. It tells us that our Alpha Power is strongly MEDIUM! It gives us more information about each feature and will help us to create more meaningful features.
+  <br />
+After creating the genes of the chromosome, we can perform the Evolutionary Algorithm steps.  <br />
+Just like descibed here: 
+[1]  [Evolutionary Algorithm](https://en.wikipedia.org/wiki/Evolutionary_algorithm)
 
+1. Randomly generate the initial population of individuals, the first generation.
+2. Evaluate the fitness of each individual in the population.
+3. Check, if the goal is reached and the algorithm can be terminated.
+4. Select individuals as parents, preferably of higher fitness.
+5. Produce offspring with optional crossover (mimicking reproduction).
+6. Apply mutation operations on the offspring.
+7. Select individuals preferably of lower fitness for replacement with new individuals (mimicking natural selection).
+8. Return to 2 [1]
 
 
 
