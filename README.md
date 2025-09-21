@@ -57,16 +57,16 @@ Then, from them, we start the evolutionary algorithm process.
    Final Extracted Feature:	0.189
    |
    Next step - Fuzzy Membership Mapping
-   (It's just an example for you to understand):
+   (It's just an example for you to understand): <br />
    <img width="639" height="441" alt="image" src="https://github.com/user-attachments/assets/160bd678-9162-4e2e-9e99-70ec87acda5d" />
-
+<br />
    |
    Our Alpha Power (8-13Hz) value of 0.75 μV² becomes:
    - Fuzzy feature #1 (LOW): 0.000
    - Fuzzy feature #2 (MEDIUM): 0.658
    - Fuzzy feature #3 (HIGH): 0.000
   
-   It gives us a robust representation of our feature. It tells us that our Alpha Power is strongly MEDIUM! It gives us more information about each feature, and will help us to create more meaningful features.
+   It gives us a robust representation of our feature. It tells us that our Alpha Power is strongly MEDIUM! It gives us more information about each feature and will help us to create more meaningful features.
 
 
 
