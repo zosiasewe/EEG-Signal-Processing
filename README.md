@@ -22,12 +22,12 @@ The project aimed to binary classify the data and see the performance for the ta
 5. Classification
 6. Checking which configuration of parameters was the best
 <br />
-**Feature Extraction method:**<br />
+**Feature Extraction method:** <br />
 <br />
 EEG data usually contains a lot of information, but it needs translation.<br />
 Feature extraction identifies which parts of the brain signal are most important for our task.<br />
 Instead of analyzing thousands of data points, we extract meaningful information.<br />
-|<br />
+<br />
 A novel (in this field) feature extraction method combining Evolutionary Algorithm with Fuzzy Logic is proposed.<br />
 <br />
 1. Evolutionary-based methodology "described simply"<br />
@@ -46,21 +46,21 @@ Then, from them, we start the evolutionary algorithm process. <br />
    Example:<br />
    Original Value (Alpha Power (8-13Hz)):	0.75 μV²<br />
    After Normalization:	-0.920 (z-score)<br />
-   |<br />
+   <br />
    Total linear combination:	0.212 (includes all features)<br />
-   |<br />
+   <br />
    Exponential Component:	tanh(-0.2×0.212 + -0.2) = -0.238<br />
    Sin Component:	sin(2.1×0.212 + 0.5) = 0.811<br />
    Log Component:	log(1.5×0.212 + 1) = 0.276<br />
    Power Component:	0.212^1.2 = 0.155<br />
-   |<br />
+   <br />
    Final Extracted Feature:	0.189<br />
-   |<br />
+   <br />
    Next step - Fuzzy Membership Mapping<br />
    (It's just an example for you to understand): <br />
    <img width="639" height="441" alt="image" src="https://github.com/user-attachments/assets/160bd678-9162-4e2e-9e99-70ec87acda5d" />
 <br />
-   |<br />
+   <br />
    Our Alpha Power (8-13Hz) value of 0.75 μV² becomes:<br />
    - Fuzzy feature #1 (LOW): 0.000<br />
    - Fuzzy feature #2 (MEDIUM): 0.658<br />
