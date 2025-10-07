@@ -1,0 +1,13 @@
+% Requires \usepackage{booktabs}\usepackage{siunitx}
+\begin{table}[ht]\centering
+\caption{Winning hyperparameters per parameter set}\label{tab:best_hyper}
+\begin{tabular}{l S[table-format=3.0] S[table-format=2.0] S[table-format=2.0] S[table-format=3.0] S[table-format=3.0] S[table-format=1.2]}
+\toprule
+\textbf{Parameter Set} & \textbf{Trees} & \textbf{Extr.} & \textbf{Sel.} & \boldmath{$\mu$} & \boldmath{$\lambda$} & \textbf{TestRatio} \\
+\midrule
+PopulationSizes & 300 & 25 & 20 & 30 & 90 & 0.20 \\
+OffspringRatio & 300 & 25 & 20 & 27 & 100 & 0.20 \\
+TestRatioComparison & 300 & 25 & 20 & 40 & 120 & 0.25 \\
+TreesComparison & 100 & 25 & 20 & 40 & 120 & 0.20 \\
+SelectedFeatures & 300 & 25 & 25 & 40 & 120 & 0.20 \\
+\bottomrule\end{tabular}\end{table}

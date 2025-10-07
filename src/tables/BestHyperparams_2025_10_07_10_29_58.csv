@@ -1,0 +1,6 @@
+ParameterSet,Trees,ExtractedFeat,SelectedFeat,Mu,Lambda,TestRatio
+PopulationSizes,300,25,20,30,90,0.2
+OffspringRatio,300,25,20,27,100,0.2
+TestRatioComparison,300,25,20,40,120,0.25
+TreesComparison,100,25,20,40,120,0.2
+SelectedFeatures,300,25,25,40,120,0.2

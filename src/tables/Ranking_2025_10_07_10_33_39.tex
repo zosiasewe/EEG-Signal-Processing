@@ -1,0 +1,13 @@
+% Requires \usepackage{booktabs}\usepackage{siunitx}
+\begin{table}[ht]\centering
+\caption{Ranking by Test F1 (best configuration per set)}\label{tab:ranking}
+\begin{tabular}{c l S[table-format=1.3] S[table-format=2.2]}
+\toprule
+\textbf{Rank} & \textbf{Parameter Set} & {\textbf{Test F1}} & {\textbf{CV\%}} \\
+\midrule
+1 & SelectedFeatures & 0.894 & 2.84 \\
+2 & TestRatioComparison & 0.884 & 2.34 \\
+3 & PopulationSizes & 0.883 & 2.53 \\
+4 & OffspringRatio & 0.880 & 2.15 \\
+5 & TreesComparison & 0.878 & 3.26 \\
+\bottomrule\end{tabular}\end{table}
