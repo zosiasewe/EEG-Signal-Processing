@@ -1,8 +1,7 @@
-**This study involves using Polygon Area Metric.**
+This study involves using Polygon Area Metric.
 Aydemir O., A New Performance Evaluation Metric for Classifiers: Polygon Area Metric, Journal of Classification, (2020). https://doi.org/10.1007/s00357-020-09362-5
 
 
 Classifier performance assessment (CPA) is a challenging task for pattern recognition. In recent years, various CPA metrics have been developed to help assess the performance of classifiers. Although the classification accuracy (CA), which is the most popular metric in pattern recognition area, works well if the classes have equal number of samples, it fails to evaluate the recognition performance of each class when the classes have different number of samples. To overcome this problem, researchers have developed various metrics including sensitivity, specificity, area under curve, Jaccard index, Kappa, and F measure except CA. Giving many evaluation metrics for assessing the performance of classifiers make large tables possible. Additionally, when comparing classifiers with each other, while a classifier might be more successful on a metric, it may have poor performance for the other metrics. Hence, such kinds of situations make it difficult to track results and compare classifiers. This study proposes a stable and profound knowledge criterion that allows the performance of a classifier to be evaluated with only a single metric called as polygon area metric (PAM). Thus, classifier performance can be easily evaluated without the need for several metrics.
 
 https://www.mathworks.com/matlabcentral/fileexchange/74136-polygon-area-metric-for-classifier-evaluation
-
