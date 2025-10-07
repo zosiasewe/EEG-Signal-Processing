@@ -22,7 +22,6 @@ The project aimed to binary classify the data and see the performance for the ta
 4. Feature Selection  
 5. Classification  
 6. Checking which configuration of parameters was the best  
-
 ---
 
 ## Feature Extraction method
@@ -90,4 +89,5 @@ After creating the genes of the chromosome, we can perform the **Evolutionary Al
 5. Produce offspring with optional crossover (mimicking reproduction).  
 6. Apply mutation operations on the offspring.  
 7. Select individuals (preferably of lower fitness) for replacement with new individuals (mimicking natural selection).  
-8. Return to step 2.  
+8. Return to step 2.
+   
